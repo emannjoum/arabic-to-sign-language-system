@@ -52,6 +52,7 @@ def transform_to_arsl(sentence: str) -> list[str]:
             arsl_sequence.append(tokens[i])
             continue
             
+        # Get the best analysis
         analysis = result.analyses[0].analysis
         
         # 'analysis' is already a dictionary in modern Camel Tools

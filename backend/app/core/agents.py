@@ -8,7 +8,7 @@ import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-CLASSIFIER_MODEL_NAME = "username/intent-classifier" # haven't uploaded the model yet
+CLASSIFIER_MODEL_NAME = "your-username/your-intent-classifier"
 try:
     cls_tokenizer = AutoTokenizer.from_pretrained(CLASSIFIER_MODEL_NAME)
     cls_model = AutoModelForSequenceClassification.from_pretrained(CLASSIFIER_MODEL_NAME)
@@ -42,8 +42,8 @@ def call_llm_for_json(system_prompt: str, user_prompt: str, temperature: float =
         return json.loads(content)
         
     except Exception as e:
-        print(f"LLM Error: {e}") 
-        # temporary. implement returning fallback object instead of crashing in the future
+        print(f"LLM Error: {e}") # Log the error
+        # In a real app, you might want to return a default/fallback object instead of crashing
         raise HTTPException(status_code=500, detail="Error processing AI request")
 
 def run_router_model(text: str) -> RouterResult:
@@ -52,6 +52,7 @@ def run_router_model(text: str) -> RouterResult:
     with torch.no_grad():
         outputs = cls_model(**inputs)
     
+    # Calculate probabilities
     probs = F.softmax(outputs.logits, dim=-1)
     confidence, predicted_class = torch.max(probs, dim=-1)
     
@@ -66,7 +67,6 @@ def run_router_model(text: str) -> RouterResult:
     )
 
 def run_intent_agent(text: str, route: str) -> IntentResult:
-    # 2 fine-tuned models to be integrated (intent and syntax ordering). keep in prompt for now
     system_prompt = """
     You are an intent detector and content extractor.
     

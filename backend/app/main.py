@@ -11,19 +11,19 @@ from app.services import auth
 app = FastAPI(title="Sign Language Backend")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For dev, allow everyone. In prod, ["http://localhost:3000"]
+    allow_origins=["*"],  # For dev, allow everyone. In production, specify ["http://localhost:3000"]
     allow_credentials=True,
-    allow_methods=["*"],  
-    allow_headers=["*"],  
+    allow_methods=["*"],  # Allow POST, GET, etc.
+    allow_headers=["*"],  # Allow all headers
 )
 
 @app.post("/process", response_model=ResponsePayload)
 def process_request(payload: UserMessage, db: Session = Depends(get_db)):
     """
-     Receives text
-     Uses LLM to decide: Translation or Teaching? will utilise the dedicated fine-tuned model later
-     Runs the specific pipeline for that mode
-     Returns a list of Skeletons (URLs) to the mobile app
+     1. Receives text.
+     2. Uses LLM to decide: Translation or Teaching?
+     3. Runs the specific pipeline for that mode.
+     4. Returns a list of Skeletons (URLs) to the mobile app.
     """
     print(f"\n{'='*40}")
     print(f" Received Request from App: {payload.text}")
@@ -37,8 +37,8 @@ def process_request(payload: UserMessage, db: Session = Depends(get_db)):
         
     elif router_res.route == "teaching": final_data = teaching.process_teaching(payload.text, db)
         
-    else: # Fallback for "other" (small talk, etc)
-         # for now return empty
+    else: # Fallback for "other" (small talk, etc.)
+         # For now, return empty
         final_data = []
         print(" No Database Action (General Conversation)")
 

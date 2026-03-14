@@ -1,0 +1,34 @@
+name: signly_app
+description: Jordanian Sign Language Translator
+publish_to: 'none'
+
+environment:
+  sdk: '^3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # 1. Typography & Icons
+  google_fonts: ^6.1.0
+  cupertino_icons: ^1.0.6
+  
+  # 2. Networking
+  http: ^1.2.0
+  dio: ^5.4.0
+  flutter_secure_storage: ^9.0.0
+  
+  # 3. State Management
+  provider: ^6.1.1
+  
+  # 4. Video & UI
+  video_player: ^2.8.2
+  chewie: ^1.7.1
+  dashed_rect: ^0.0.4
+
+# The flutter-specific configurations go HERE, at the root level, not under dependencies.
+flutter:
+  uses-material-design: true
+
+dev_dependencies:
+  flutter_lints: ^4.0.0

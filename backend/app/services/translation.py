@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from app.core.semantic import semantic_engine
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
-REORDER_MODEL_NAME = "username/reordering-model" # haven't uploaded the model yet
+REORDER_MODEL_NAME = "your-username/your-arsl-reordering-model"
 
 try:
     reorder_tokenizer = AutoTokenizer.from_pretrained(REORDER_MODEL_NAME)

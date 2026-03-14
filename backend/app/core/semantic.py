@@ -136,23 +136,23 @@ class SemanticEngine:
     def search(self, query_word: str, top_k=5):
         q = norm_ar(query_word)
 
-        # kinship: always decompose
+        # 1. kinship: always decompose
         if q in KINSHIP_HINTS:
             proxy = self._definition_proxy(query_word)
             if proxy:
                 return proxy
 
-        # exact atomic match (non-kinship)
+        # 2. exact atomic match (non-kinship)
         if q in self.norm_ar_texts and q not in KINSHIP_HINTS:
             idx = self.norm_ar_texts.index(q)
             return {"type": "match", "word": self.ar_texts[idx], "score": 1.0}
 
-        # definition proxy
+        # 3. definition proxy
         proxy = self._definition_proxy(query_word)
         if proxy:
             return proxy
 
-        # embeddings → explain only
+        # 4. embeddings → explain only
         q_vec = self.embed_texts([q])
         D, I = self.index.search(q_vec, top_k)
 
