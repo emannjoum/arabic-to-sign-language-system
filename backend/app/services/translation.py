@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 from sqlalchemy.orm import Session
 from app.core.nlp_utils import transform_to_arsl, extract_names
 from app.core.agents import run_intent_agent
@@ -8,12 +10,15 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from app.core.semantic import semantic_engine
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
-REORDER_MODEL_NAME = "your-username/your-arsl-reordering-model"
+load_dotenv()
+
+REORDER_MODEL_NAME = os.getenv("REORDER_MODEL_NAME")
+HF_TOKEN = os.getenv("HF_TOKEN")
 
 try:
-    reorder_tokenizer = AutoTokenizer.from_pretrained(REORDER_MODEL_NAME)
-    reorder_model = AutoModelForSeq2SeqLM.from_pretrained(REORDER_MODEL_NAME)
-    print("Reordering Model Loaded.")
+    reorder_tokenizer = AutoTokenizer.from_pretrained(REORDER_MODEL_NAME, token=HF_TOKEN, use_fast=False, legacy=False)
+    reorder_model = AutoModelForSeq2SeqLM.from_pretrained(REORDER_MODEL_NAME, token=HF_TOKEN)
+    print(f"Reordering Model '{REORDER_MODEL_NAME}' Loaded.")
 except Exception as e:
     print(f"Error loading reordering model: {e}")
 

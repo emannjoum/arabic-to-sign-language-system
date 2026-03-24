@@ -1,6 +1,7 @@
 import os
 import json
-from openai import OpenAI
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 from fastapi import HTTPException
 from app.schemas import RouterResult, IntentResult, TopicResult, VocabResult
@@ -8,42 +9,38 @@ import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-CLASSIFIER_MODEL_NAME = "your-username/your-intent-classifier"
+load_dotenv()
+
+CLASSIFIER_MODEL_NAME = os.getenv("CLASSIFIER_MODEL_NAME")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
 try:
-    cls_tokenizer = AutoTokenizer.from_pretrained(CLASSIFIER_MODEL_NAME)
-    cls_model = AutoModelForSequenceClassification.from_pretrained(CLASSIFIER_MODEL_NAME)
-    print("Intent Classifier Loaded.")
+    cls_tokenizer = AutoTokenizer.from_pretrained(CLASSIFIER_MODEL_NAME, token=HF_TOKEN)
+    cls_model = AutoModelForSequenceClassification.from_pretrained(CLASSIFIER_MODEL_NAME, token=HF_TOKEN)
+    print(f"Intent Classifier '{CLASSIFIER_MODEL_NAME}' Loaded.")
 except Exception as e:
     print(f"Error loading classifier: {e}")
     raise e
 
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-MODEL_NAME = "gpt-4o-mini"
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 def call_llm_for_json(system_prompt: str, user_prompt: str, temperature: float = 0.2) -> dict:
     try:
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            temperature=temperature,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
+        full_prompt = f"System Instructions:\n{system_prompt}\n\nUser Input:\n{user_prompt}"
+        
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=full_prompt,
+            config=types.GenerateContentConfig(
+                temperature=temperature,
+                response_mime_type="application/json",
+            )
         )
         
-        content = response.choices[0].message.content.strip()
-        
-        if content.startswith("```"):
-            content = content.strip("`")
-            if content.lower().startswith("json"):
-                content = content[4:].strip()
-                
-        return json.loads(content)
+        return json.loads(response.text)
         
     except Exception as e:
-        print(f"LLM Error: {e}") # Log the error
-        # In a real app, you might want to return a default/fallback object instead of crashing
+        print(f"Gemini LLM Error: {e}") 
         raise HTTPException(status_code=500, detail="Error processing AI request")
 
 def run_router_model(text: str) -> RouterResult:

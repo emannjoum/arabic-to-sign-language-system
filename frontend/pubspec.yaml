@@ -22,7 +22,7 @@ dependencies:
   provider: ^6.1.1
   
   # 4. Video & UI
-  video_player: ^2.8.2
+  video_player: ^2.11.1
   chewie: ^1.7.1
   dashed_rect: ^0.0.4
 

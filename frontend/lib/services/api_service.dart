@@ -4,8 +4,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/skeleton_frame.dart';
 
 class ApiService {
-  // CRITICAL: 10.0.2.2 is the special IP Android Emulators use to reach your laptop's localhost
-  static const String baseUrl = 'http://10.0.2.2:8000';
+  static const String baseUrl = 'http://100.116.62.123:8000';
   static const storage = FlutterSecureStorage();
 
   // 1. REGISTER
@@ -50,29 +49,40 @@ class ApiService {
     await storage.delete(key: 'jwt_token');
   }
 
+  // GET TOKEN HELPER
+  static Future<String?> getToken() async {
+    return await storage.read(key: 'jwt_token');
+  }
+  
   // 4. PROCESS TEXT (The Core Pipeline)
-  static Future<ProcessResponse?> processText(String text) async {
+  static Future<ProcessResponse?> processText(String text, {String? forceMode}) async {
     try {
-      print("Sending to FastAPI: $text");
+      final token = await getToken();
       
+      // 2. Build the JSON body dynamically
+      final Map<String, dynamic> bodyData = {"text": text};
+      if (forceMode != null) {
+        bodyData["force_mode"] = forceMode;
+      }
+
       final response = await http.post(
         Uri.parse('$baseUrl/process'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'text': text}), // Matches your UserMessage schema in Python
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(bodyData), // Send the updated body
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        print("Received from FastAPI: ${data['mode']}");
-        return ProcessResponse.fromJson(data);
+        return ProcessResponse.fromJson(jsonDecode(response.body));
       } else {
-        print('Backend Error: ${response.body}');
+        print("Backend Error: ${response.statusCode}");
         return null;
       }
     } catch (e) {
-      print('Network Error: $e');
-      // If the server is offline, we catch it here so the app doesn't crash
-      return null; 
+      print("Network Error: $e");
+      return null;
     }
   }
 }
