@@ -1,7 +1,6 @@
 import os
 import json
-from google import genai
-from google.genai import types
+from openai import OpenAI
 from dotenv import load_dotenv
 from fastapi import HTTPException
 from app.schemas import RouterResult, IntentResult, TopicResult, VocabResult
@@ -22,26 +21,23 @@ except Exception as e:
     print(f"Error loading classifier: {e}")
     raise e
 
-client = genai.Client(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 def call_llm_for_json(system_prompt: str, user_prompt: str, temperature: float = 0.2) -> dict:
     try:
-        full_prompt = f"System Instructions:\n{system_prompt}\n\nUser Input:\n{user_prompt}"
-        
-        response = client.models.generate_content(
-            model='gpt-4o-mini',
-            contents=full_prompt,
-            config=types.GenerateContentConfig(
-                temperature=temperature,
-                response_mime_type="application/json",
-            )
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=temperature,
+            response_format={ "type": "json_object" } 
         )
-        
-        return json.loads(response.text)
-        
+        return json.loads(response.choices[0].message.content)
     except Exception as e:
-        print(f"Gemini LLM Error: {e}") 
-        raise HTTPException(status_code=500, detail="Error processing AI request")
+        print(f"AI Service Error: {e}")
+        raise HTTPException(status_code=500, detail="AI processing failed")
 
 def run_router_model(text: str) -> RouterResult:
     inputs = cls_tokenizer(text, return_tensors="pt", truncation=True, max_length=128)
