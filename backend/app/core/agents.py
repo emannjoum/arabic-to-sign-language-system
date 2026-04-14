@@ -22,14 +22,14 @@ except Exception as e:
     print(f"Error loading classifier: {e}")
     raise e
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+client = genai.Client(api_key=os.getenv("OPENAI_API_KEY"))
 
 def call_llm_for_json(system_prompt: str, user_prompt: str, temperature: float = 0.2) -> dict:
     try:
         full_prompt = f"System Instructions:\n{system_prompt}\n\nUser Input:\n{user_prompt}"
         
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gpt-4o-mini',
             contents=full_prompt,
             config=types.GenerateContentConfig(
                 temperature=temperature,

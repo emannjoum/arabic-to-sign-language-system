@@ -17,3 +17,4 @@ pydantic
 openpyxl
 transformers
 sentencepiece
+google-genai
