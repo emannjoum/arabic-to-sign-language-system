@@ -11,6 +11,12 @@ from camel_tools.disambig.mle import MLEDisambiguator
 from transformers import pipeline
 from app.db.database import SessionLocal
 from app.db.models import Sign
+
+LEMMA_CORRECTIONS = {
+    "نما": "نام",
+    "مشي": "مشى",
+    # add more as you find them
+}
 try:
     db = MorphologyDB.builtin_db()
     analyzer = Analyzer(db)
@@ -106,9 +112,9 @@ def transform_to_arsl(sentence: str) -> list[str]:
  
         if analysis.get('gen') == 'f' and analysis.get('rat') == 'y': arsl_sequence.append("بنت")
         #if feat['vox'] == p : passivaiton (idk what to do yet)
-        if analysis.get('num') == 'd':
+        if analysis.get('num') == 'd' and "اثنان" not in arsl_sequence:
             arsl_sequence.append("اثنان")
-        elif analysis.get('num') == 'p':
+        elif analysis.get('num') == 'p' and "كثير" not in arsl_sequence:
             arsl_sequence.append("كثير")
 
         if analysis.get('asp') == 'p':     # Past
@@ -127,6 +133,7 @@ def transform_to_arsl(sentence: str) -> list[str]:
         raw_lemma = analysis.get('lex', token)
         clean_lemma = dediac_ar(raw_lemma)
         clean_lemma = clean_lemma.split('_')[0]
+        clean_lemma = LEMMA_CORRECTIONS.get(clean_lemma, clean_lemma)
 
         if repeat_verb and pos == 'verb':
             arsl_sequence.extend([clean_lemma, clean_lemma, clean_lemma])
