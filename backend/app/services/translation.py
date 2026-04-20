@@ -10,10 +10,20 @@ from app.schemas import SkeletonFrame
 from sqlalchemy import or_, cast, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from app.core.semantic import semantic_engine
-from transformers import SentenceTransformer
+# from transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer
 from huggingface_hub import hf_hub_download
+from app.core.nlp_utils import SIGNS_SET
+import re
+from app.core.nlp_utils import normalize_text
 
 load_dotenv()
+
+
+COMPOUND_SIGNS = sorted(
+    [s for s in SIGNS_SET if " " in s and len(s.split()) >= 2],
+    key=lambda x: -len(x)
+)
 
 class PointerAttention(nn.Module):
     def __init__(self, hidden_dim):
@@ -65,25 +75,37 @@ try:
     print("PointerNet Loaded and Ready.")
 except Exception as e:
     print(f"Error loading PointerNet: {e}")
+from app.core.nlp_utils import normalize_text
 
 def local_pointer_reorder(sentence: str) -> list[str]:
-    particles = ["قبل" ,"اثنان" ,"كثير" ,"في", "و", "على", "من", "إلى", "عن", "ثم"]
-    words = sentence.split()
+    sentence = re.sub(r'ال(\w+)', r'\1', sentence)
+    protected = sentence
+    compound_map = {}
+    for compound in COMPOUND_SIGNS:
+        if compound in protected:
+            token = compound.replace(" ", "_")
+            protected = protected.replace(compound, token)
+            compound_map[token] = compound
+
+    # particle gluing
+    particles = ["قبل","اثنان","كثير","في","و","على","من","إلى","عن","ثم"]
+    words = protected.split()
     glued, i = [], 0
     while i < len(words):
         if words[i] in particles and i + 1 < len(words):
-            glued.append(f"{words[i]}_{words[i+1]}"); i += 2
+            glued.append(f"{words[i]}_{words[i+1]}")
+            i += 2
         else:
-            glued.append(words[i]); i += 1
+            glued.append(words[i])
+            i += 1
 
     clean_glued = [w.replace("؟", "") for w in glued]
     n = len(clean_glued)
-    
     if n == 0: return []
-    
+
     with torch.no_grad():
         emb = torch.FloatTensor(EMBED_MODEL.encode(clean_glued)).unsqueeze(0).to(DEVICE)
-        padded_x = torch.zeros(1, 20, 384).to(DEVICE) 
+        padded_x = torch.zeros(1, 20, 384).to(DEVICE)
         padded_x[0, :n] = emb
         logits = reorder_model(padded_x)[0]
         indices, mask = [], torch.zeros(n).to(DEVICE)
@@ -91,11 +113,18 @@ def local_pointer_reorder(sentence: str) -> list[str]:
             step_logits = logits[step, :n] + mask
             idx = torch.argmax(step_logits).item()
             indices.append(idx)
-            mask[idx] = -1e9 
+            mask[idx] = -1e9
         reordered = [clean_glued[idx] for idx in indices]
-        
-    # Remove the underscore glue to return standard lemmas
-    return [w.replace("_", " ") for w in reordered]
+
+    # restore compounds + expand particles
+    result = []
+    for w in reordered:
+        if w in compound_map:
+            result.append(compound_map[w])
+        else:
+            result.extend(w.replace("_", " ").split())
+
+    return result
 
 def process_translation(user_input: str, db: Session):
     intent_res = run_intent_agent(user_input, route="translation")
@@ -103,17 +132,17 @@ def process_translation(user_input: str, db: Session):
     print(f"Cleaned Input: '{clean_text}'")
     detected_names = extract_names(clean_text)
     print(f"Detected Names: {detected_names}")
-    nlp_lemmas = transform_to_arsl(clean_text)
     
     try:
-        final_lemmas = local_pointer_reorder(" ".join(nlp_lemmas))
-        print(f"Reordered: {nlp_lemmas} -> {final_lemmas}")
+        reordered_words = local_pointer_reorder(clean_text)
+        print(f"Reordered: {clean_text} -> {reordered_words}")
+        final_lemmas = transform_to_arsl(" ".join(reordered_words))
+        print(f"Final lemmas: {final_lemmas}")
     except Exception as e:
         print(f"PointerNet Failed: {e}. Using NLP order.")
-        final_lemmas = nlp_lemmas
-
+        final_lemmas = transform_to_arsl(clean_text)
+    
     response_data = []
-
     for lemma in final_lemmas:
 
         if lemma in detected_names:
