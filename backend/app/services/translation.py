@@ -86,6 +86,7 @@ def local_pointer_reorder(sentence: str) -> list[str]:
             token = compound.replace(" ", "_")
             protected = protected.replace(compound, token)
             compound_map[token] = compound
+    protected = re.sub(r'ال(\w+)', r'\1', protected)
 
     # particle gluing
     particles = ["قبل","اثنان","كثير","في","و","على","من","إلى","عن","ثم"]
@@ -130,63 +131,99 @@ def process_translation(user_input: str, db: Session):
     intent_res = run_intent_agent(user_input, route="translation")
     clean_text = intent_res.extracted_text
     print(f"Cleaned Input: '{clean_text}'")
+
+    # Single letter input handle directly
+    if len(clean_text) == 1 and re.match(r'[\u0600-\u06FF]', clean_text):
+        print(f"Single letter input: '{clean_text}'. Looking up directly.")
+        sign_entry = find_sign_in_db(clean_text, db)
+        if sign_entry:
+            return [SkeletonFrame(skeleton_url=sign_entry.skeleton_url, label=clean_text, delay_ms=0)]
+        else:
+            print(f"Letter '{clean_text}' not found in DB.")
+            return []
+
+    # Check FIXED_PHRASES before reordering 
+    from app.core.nlp_utils import FIXED_PHRASES
+    response_data = []
+    remaining_text = clean_text
+
+    for phrase in FIXED_PHRASES:
+        if phrase in remaining_text:
+            sign_entry = find_sign_in_db(phrase, db)
+            if sign_entry:
+                add_sign_to_response(response_data, sign_entry, phrase)
+            remaining_text = remaining_text.replace(phrase, "").strip()
+
+    # If nothing left after removing fixed phrases, return early
+    if not remaining_text:
+        return response_data
+
+    # Continue pipeline with remaining text only
+    clean_text = remaining_text
+
+    # Name detection
     detected_names = extract_names(clean_text)
     print(f"Detected Names: {detected_names}")
-    
+
     try:
-        reordered_words = local_pointer_reorder(clean_text)
-        print(f"Reordered: {clean_text} -> {reordered_words}")
-        final_lemmas = transform_to_arsl(" ".join(reordered_words))
+        words = clean_text.split()
+        if len(words) > 3:
+            reordered_words = local_pointer_reorder(clean_text)
+            print(f"Reordered: {clean_text} -> {reordered_words}")
+            final_lemmas = transform_to_arsl(" ".join(reordered_words))
+        else:
+            print(f"Short sentence — skipping reorder, using N-gram directly.")
+            final_lemmas = transform_to_arsl(clean_text)
         print(f"Final lemmas: {final_lemmas}")
     except Exception as e:
         print(f"PointerNet Failed: {e}. Using NLP order.")
         final_lemmas = transform_to_arsl(clean_text)
-    
-    response_data = []
+
     for lemma in final_lemmas:
 
-        if lemma in detected_names:
-            print(f"'{lemma}' is a name. Force Fingerspelling.")
-            fingerspelling_skeletons = get_fingerspelling_sequence(lemma, db)
+        if normalize_text(lemma) in detected_names:
+            print(f"'{lemma}' is a name. Fingerspelling immediately.")
+            fingerspelling_skeletons = get_fingerspelling_sequence(lemma, db, is_name=True)
             response_data.extend(fingerspelling_skeletons)
             continue
-        
+
+        # Direct DB match
         sign_entry = find_sign_in_db(lemma, db)
-        
         if sign_entry:
             add_sign_to_response(response_data, sign_entry, lemma)
             continue
 
+        # Semantic search
         print(f"Direct match failed for '{lemma}'. Trying Semantic Search...")
         semantic_result = semantic_engine.search(lemma)
-        
+
         if semantic_result:
             if semantic_result["type"] == "match":
                 alt_word = semantic_result["word"]
                 print(f"AI Suggestion: Replace '{lemma}' with '{alt_word}' ({semantic_result['score']:.2f})")
                 alt_sign = find_sign_in_db(alt_word, db)
                 if alt_sign:
-                    add_sign_to_response(response_data, alt_sign, lemma) # Use original label, but new video
+                    add_sign_to_response(response_data, alt_sign, lemma)
                     continue
 
             elif semantic_result["type"] == "explain":
                 explanation_words = semantic_result["words"]
-                print(f"AI Explanation: '{lemma}' -> {explanation_words}") 
+                print(f"AI Explanation: '{lemma}' -> {explanation_words}")
                 found_explanation = False
                 for w in explanation_words:
                     s = find_sign_in_db(w, db)
                     if s:
                         add_sign_to_response(response_data, s, w)
                         found_explanation = True
-                
-                if found_explanation: continue
+                if found_explanation:
+                    continue
 
+        # Fingerspell as last resort
         print(f"All lookups failed for '{lemma}'. Fingerspelling.")
-        fingerspelling_skeletons = get_fingerspelling_sequence(lemma, db)
+        fingerspelling_skeletons = get_fingerspelling_sequence(lemma, db, is_name=False)
         response_data.extend(fingerspelling_skeletons)
 
     return response_data
-
 def find_sign_in_db(word: str, db: Session):
     return db.query(Sign).filter(
         or_(
@@ -202,16 +239,16 @@ def add_sign_to_response(response_list, sign_obj, label_text):
         delay_ms=0
     ))
 
-def get_fingerspelling_sequence(word: str, db: Session):
+def get_fingerspelling_sequence(word: str, db: Session, is_name: bool = False):
     skeletons = []
+    delay = 700 if is_name else 500
     for letter in word:
         letter_sign = db.query(Sign).filter(Sign.word == letter).first()
-        
         if letter_sign:
             skeletons.append(SkeletonFrame(
                 skeleton_url=letter_sign.skeleton_url,
                 label=letter,
-                delay_ms=500  # Small delay between letters so it's readable
+                delay_ms=delay
             ))
-            
     return skeletons
+
