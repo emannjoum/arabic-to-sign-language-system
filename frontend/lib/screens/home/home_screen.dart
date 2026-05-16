@@ -5,7 +5,8 @@ import '../translation/translation_screen.dart';
 import '../learning/learning_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final VoidCallback? onNavigateToBookmarks;
+  const HomeScreen({super.key, this.onNavigateToBookmarks});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -150,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 flex: 1,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () => widget.onNavigateToBookmarks?.call(),
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[300], foregroundColor: AppColors.textBlack, padding: const EdgeInsets.symmetric(vertical: 16), elevation: 0),
                   child: const Text("المحفوظات"),
                 ),
