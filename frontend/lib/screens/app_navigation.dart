@@ -17,13 +17,19 @@ class _AppNavigationState extends State<AppNavigation> {
   int _currentIndex = 0; // Starts on the Home Screen
 
   // The list of screens in the exact order of your bottom navigation bar
-  final List<Widget> _screens = [
-    const HomeScreen(),
+  late final List<Widget> _screens;
+
+@override
+void initState() {
+  super.initState();
+  _screens = [
+    HomeScreen(onNavigateToBookmarks: () => setState(() => _currentIndex = 3)),
     const LearningScreen(),
     const TranslationScreen(),
     const BookmarksScreen(),
     const ProfileScreen(),
   ];
+  }
 
   @override
   Widget build(BuildContext context) {
