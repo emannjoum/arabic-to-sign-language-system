@@ -52,11 +52,11 @@ class MainLayout extends StatelessWidget {
                 const SizedBox(height: 40),
                 const Text("Signly", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 40),
-                _NavItem(icon: Icons.home_outlined, label: "الرئيسية", isActive: selectedIndex == 0),
-                _NavItem(icon: Icons.school_outlined, label: "التعلم", isActive: selectedIndex == 1),
-                _NavItem(icon: Icons.translate_outlined, label: "الترجمة", isActive: selectedIndex == 2),
-                _NavItem(icon: Icons.bookmark_border, label: "المحفوظات", isActive: selectedIndex == 3),
-                _NavItem(icon: Icons.person_outline, label: "الملف الشخصي", isActive: selectedIndex == 4),
+                _NavItem(icon: Icons.home_outlined, label: "الرئيسية", isActive: selectedIndex == 0, onTap: () => onTabTapped(0)),
+                _NavItem(icon: Icons.school_outlined, label: "التعلم", isActive: selectedIndex == 1, onTap: () => onTabTapped(1)),
+                _NavItem(icon: Icons.translate_outlined, label: "الترجمة", isActive: selectedIndex == 2, onTap: () => onTabTapped(2)),
+                _NavItem(icon: Icons.bookmark_border, label: "المحفوظات", isActive: selectedIndex == 3, onTap: () => onTabTapped(3)),
+                _NavItem(icon: Icons.person_outline, label: "الملف الشخصي", isActive: selectedIndex == 4, onTap: () => onTabTapped(4)),
               ],
             ),
           ),
@@ -77,8 +77,14 @@ class _NavItem extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool isActive;
+  final VoidCallback onTap;
 
-  const _NavItem({required this.icon, required this.label, required this.isActive});
+  const _NavItem({
+    required this.icon, 
+    required this.label, 
+    required this.isActive, 
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +102,7 @@ class _NavItem extends StatelessWidget {
             fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
           ),
         ),
-        onTap: () {},
+        onTap: onTap,
       ),
     );
   }
