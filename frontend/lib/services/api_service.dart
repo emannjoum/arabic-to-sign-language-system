@@ -4,7 +4,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/skeleton_frame.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://100.116.62.123:8000';
+  // static const String baseUrl = 'http://100.116.62.123:8000';
+  static const String baseUrl = 'http://127.0.0.1:8000';
+  // static const String baseUrl = 'http://192.168.1.11:8000';
+
   static const storage = FlutterSecureStorage();
 
   // 1. REGISTER
@@ -85,4 +88,62 @@ class ApiService {
       return null;
     }
   }
+
+  // 5. ADD BOOKMARK
+static Future<bool> addBookmark(String word) async {
+  try {
+    final token = await getToken();
+    final response = await http.post(
+      Uri.parse('$baseUrl/bookmarks?word=${Uri.encodeComponent(word)}'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    return response.statusCode == 200;
+  } catch (e) {
+    print('Bookmark Error: $e');
+    return false;
+  }
+}
+
+// 6. REMOVE BOOKMARK
+static Future<bool> removeBookmark(String word) async {
+  try {
+    final token = await getToken();
+    final response = await http.delete(
+      Uri.parse('$baseUrl/bookmarks?word=${Uri.encodeComponent(word)}'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    return response.statusCode == 200;
+  } catch (e) {
+    print('Remove Bookmark Error: $e');
+    return false;
+  }
+}
+
+// 7. GET BOOKMARKS
+static Future<List<Map<String, dynamic>>> getBookmarks() async {
+  try {
+    final token = await getToken();
+    final response = await http.get(
+      Uri.parse('$baseUrl/bookmarks'),
+      headers: {
+        'Content-Type': 'application/json',
+        if (token != null) 'Authorization': 'Bearer $token',
+      },
+    );
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+      return data.cast<Map<String, dynamic>>();
+    }
+    return [];
+  } catch (e) {
+    print('Get Bookmarks Error: $e');
+    return [];
+  }
+}
 }
