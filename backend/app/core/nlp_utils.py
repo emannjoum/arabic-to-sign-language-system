@@ -31,9 +31,9 @@ ner_pipeline = pipeline("ner", model="CAMeL-Lab/bert-base-arabic-camelbert-mix-n
 
 QUESTION_WORDS = {"من", "ماذا", "أين", "اين", "متى", "كيف", "لماذا", "كم", "أي", "هل"}
 NEG_WORDS = {"لا", "لم", "لن", "ليس", "ما", "أبدًا", "ابدا"}
-STOP_WORDS = {"و", "ف", "ثم", "ان", "أن"}
+STOP_WORDS = {"يا","و", "ف", "ثم", "ان", "أن"}
 CONDITIONAL_WORDS = {"اذا", "لو", "لولا", "كلما", "إن", "ان", "كيفما", "اينما"}
-FIXED_PHRASES     = {"بسم الله الرحمن الرحيم","ما شاء الله","إن شاء الله", "الحمد لله"}
+FIXED_PHRASES     = {"كيف حالك","بسم الله الرحمن الرحيم","ما شاء الله","إن شاء الله", "الحمد لله"}
 
 def normalize_text(s: str) -> str:
     s = normalize_unicode(s)
@@ -64,6 +64,8 @@ SIGNS_SET = load_signs_set()
 print(f"Loaded {len(SIGNS_SET)} signs into N-gram set.")
 
 def transform_to_arsl(sentence: str) -> list[str]:
+    print(f"transform_to_arsl received: '{sentence}'")
+    
      # fixed phrase check
     for phrase in FIXED_PHRASES:
         if phrase in sentence:
@@ -82,7 +84,7 @@ def transform_to_arsl(sentence: str) -> list[str]:
     arsl_sequence = []
     question_word = None
     negation_word = None
-    has_q_mark = "؟" in sentence or "?" in sentence
+    # has_q_mark = "؟" in sentence or "?" in sentence
 
     for i, result in enumerate(disambig_results):
         if not result.analyses:
@@ -142,8 +144,9 @@ def transform_to_arsl(sentence: str) -> list[str]:
 
     if negation_word: arsl_sequence.append("لا")
     if question_word:arsl_sequence.append(question_word)
-    if has_q_mark or question_word: arsl_sequence.insert(0, "؟")
+    # if has_q_mark or question_word: arsl_sequence.insert(0, "؟")
     # N-gram phrase matching 
+    print(f"DEBUG arsl_sequence before N-gram: {arsl_sequence}")
     result = []
     i = 0
     while i < len(arsl_sequence):
@@ -164,11 +167,16 @@ def transform_to_arsl(sentence: str) -> list[str]:
 
 def extract_names(text: str) -> set:
     """Returns a set of words that are names (PERS)."""
-    ner_results = ner_pipeline(text)
+    from camel_tools.utils.normalize import normalize_alef_ar
+    normalized = normalize_alef_ar(text)
+    ner_results = ner_pipeline(normalized)
     names = set()
     for entity in ner_results:
-        if "PERS" in entity['entity_group']:
-            # Normalize the name (remove diacritics) to match your pipeline
+        if entity['entity_group'] == "PERS":
             clean_name = normalize_text(entity['word'])
-            names.add(clean_name)
+            parts = clean_name.split("و")
+            for part in parts:
+                part = part.strip()
+                if part:
+                    names.add(part)
     return names
