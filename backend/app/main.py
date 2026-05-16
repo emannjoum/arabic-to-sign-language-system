@@ -10,6 +10,23 @@ from app.services import auth
 from pydantic import BaseModel
 from typing import Optional, List
 from app.db.models import Sign
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import jwt, JWTError
+from app.core.security import SECRET_KEY, ALGORITHM
+from app.services import bookmarks as bookmark_service
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        if username is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return username
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 app = FastAPI(title="Sign Language Backend")
 app.add_middleware(
@@ -85,3 +102,15 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 @app.post("/login", response_model=Token)
 def login(user: UserLogin, db: Session = Depends(get_db)):
      return auth.login_user(user, db)
+ 
+@app.post("/bookmarks")
+def add_bookmark(word: str, db: Session = Depends(get_db), username: str = Depends(get_current_user)):
+    return bookmark_service.add_bookmark(username, word, db)
+
+@app.delete("/bookmarks")
+def remove_bookmark(word: str, db: Session = Depends(get_db), username: str = Depends(get_current_user)):
+    return bookmark_service.remove_bookmark(username, word, db)
+
+@app.get("/bookmarks")
+def get_bookmarks(db: Session = Depends(get_db), username: str = Depends(get_current_user)):
+    return bookmark_service.get_bookmarks(username, db)
