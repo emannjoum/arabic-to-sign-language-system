@@ -28,7 +28,7 @@ def call_llm_for_json(system_prompt: str, user_prompt: str, temperature: float =
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": system_prompt + "\n\nIMPORTANT: You must return valid JSON."},
                 {"role": "user", "content": user_prompt}
             ],
             temperature=temperature,
@@ -81,9 +81,28 @@ def run_intent_agent(text: str, route: str) -> IntentResult:
 
 def run_topic_agent(text: str) -> TopicResult:
     system_prompt = """
-    Extract the MAIN topic (e.g., hospital, family) in 1-2 words lowercase.
-    Return JSON: {"topic": "...", "other_possible_topics": [...], "reason": "..."}
+    Analyze the user's message and determine the MAIN topic.
+    
+    CRITICAL: You MUST extract the main "topic" by choosing strictly from the following exact list of categories. Do not translate to English, do not use synonyms, and do not alter the spelling.
+    
+    Allowed Topics:
+    [
+        "إقتصاد", "الأرقام", "الأفعال", "الألوان", "الحيوانات", 
+        "العائلة", "البيت", "التربية", "الحكومة والسياسة", "الدين", 
+        "الصفات", "الطرق والمواصلات", "الطعام", "العلاقات الاجتماعية", 
+        "الوقت", "دول العالم", "متفرقات", "الحروف"
+    ]
+    
+    If the text does not clearly match one of the specific topics, use "متفرقات" as the fallback.
+    
+    Return JSON format exactly like this: 
+    {
+        "topic": "<EXACT MATCH FROM ALLOWED TOPICS>", 
+        "other_possible_topics": ["<related term 1>", "<related term 2>"], 
+        "reason": "<brief explanation for your choice>"
+    }
     """
+    
     data = call_llm_for_json(system_prompt, f"User message: {text}")
     data.setdefault("other_possible_topics", [])
     return TopicResult(**data)
