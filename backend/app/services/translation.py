@@ -164,6 +164,12 @@ def process_translation(user_input: str, db: Session):
     # Name detection
     detected_names = extract_names(clean_text)
     print(f"Detected Names: {detected_names}")
+    # Temporarily inject detected names into LEMMA_CORRECTIONS
+    # so CAMeL returns them unchanged
+    from app.core import nlp_utils
+    for name in detected_names:
+        normalized = normalize_text(name)
+        nlp_utils.LEMMA_CORRECTIONS[normalized] = name
 
     try:
         words = clean_text.split()
@@ -251,4 +257,3 @@ def get_fingerspelling_sequence(word: str, db: Session, is_name: bool = False):
                 delay_ms=delay
             ))
     return skeletons
-

@@ -15,6 +15,7 @@ from app.db.models import Sign
 LEMMA_CORRECTIONS = {
     "نما": "نام",
     "مشي": "مشى",
+     "أراد": "الأردن",
     # add more as you find them
 }
 try:
@@ -33,7 +34,7 @@ QUESTION_WORDS = {"من", "ماذا", "أين", "اين", "متى", "كيف", "�
 NEG_WORDS = {"لا", "لم", "لن", "ليس", "ما", "أبدًا", "ابدا"}
 STOP_WORDS = {"يا","و", "ف", "ثم", "ان", "أن"}
 CONDITIONAL_WORDS = {"اذا", "لو", "لولا", "كلما", "إن", "ان", "كيفما", "اينما"}
-FIXED_PHRASES     = {"كيف حالك","بسم الله الرحمن الرحيم","ما شاء الله","إن شاء الله", "الحمد لله"}
+FIXED_PHRASES     = {"السلام عليكم ورحمة الله","السلام عليكم","كيف حالك","بسم الله الرحمن الرحيم","ما شاء الله","إن شاء الله", "الحمد لله"}
 
 def normalize_text(s: str) -> str:
     s = normalize_unicode(s)
@@ -165,18 +166,42 @@ def transform_to_arsl(sentence: str) -> list[str]:
 
     return result
 
+
 def extract_names(text: str) -> set:
-    """Returns a set of words that are names (PERS)."""
-    from camel_tools.utils.normalize import normalize_alef_ar
-    normalized = normalize_alef_ar(text)
-    ner_results = ner_pipeline(normalized)
+    from app.core.agents import extract_names_with_llm
+    import app.core.nlp_utils as nlp_utils
+
     names = set()
-    for entity in ner_results:
-        if entity['entity_group'] == "PERS":
-            clean_name = normalize_text(entity['word'])
-            parts = clean_name.split("و")
-            for part in parts:
-                part = part.strip()
-                if part:
-                    names.add(part)
+
+    # PRIMARY: LLM
+    llm_names = extract_names_with_llm(text)
+    for name in llm_names:
+        names.add(normalize_text(name))
+
+    if not names:
+        # FALLBACK: NER model
+        normalized = normalize_alef_ar(text)
+        ner_results = ner_pipeline(normalized)
+        for entity in ner_results:
+            if entity['entity_group'] == "PERS":
+                clean_name = normalize_text(entity['word'])
+                for part in clean_name.split("و"):
+                    part = part.strip()
+                    if part:
+                        names.add(part)
+
+    # Pre-register CAMeL bad lemmas -> correct name in LEMMA_CORRECTIONS
+    for name in names:
+        tokens = simple_word_tokenize(name)
+        disambig_results = mle_disambig.disambiguate(tokens)
+        for i, result in enumerate(disambig_results):
+            if result.analyses:
+                bad_lemma = dediac_ar(
+                    result.analyses[0].analysis.get('lex', tokens[i])
+                ).split('_')[0]
+                if bad_lemma != name:
+                    nlp_utils.LEMMA_CORRECTIONS[bad_lemma] = name
+                    print(f"Registered correction: '{bad_lemma}' -> '{name}'")
+
+    print(f"Detected Names: {names}")
     return names

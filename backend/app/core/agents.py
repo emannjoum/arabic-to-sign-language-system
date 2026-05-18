@@ -115,3 +115,51 @@ def run_vocab_agent(text: str, topic: str) -> VocabResult:
     data = call_llm_for_json(system_prompt, f"Topic: {topic}\nUser message: {text}")
     data.setdefault("topic", topic)
     return VocabResult(**data)
+
+
+
+def extract_names_with_llm(text: str) -> list:
+    # system_prompt = """
+    # You are an Arabic named entity recognition system.
+    # Extract ONLY person names from the given Arabic text, don`t extract any other names like places or contires just person names.
+    # Return ONLY a JSON object with a "names" key containing a list of names.
+    # If no person names are found, return {"names": []}.
+    # Do not include common words, adjectives, or verbs — only proper person names.
+    
+    # Examples:
+    # "مرحبا انا يزيد" -> {"names": ["يزيد"]}
+    # "قال محمد وعلي" -> {"names": ["محمد", "علي"]}
+    # "انا سعيد اليوم" -> {"names": []}  (سعيد here means happy, not a name)
+    # "انا ربى" -> {"names": ["ربى"]}
+    # "كيف حالك" -> {"names": []}
+    # """
+    
+    system_prompt = """
+    You are an Arabic named entity recognition system specialized in detecting PERSON NAMES ONLY.
+
+    Rules:
+    - Extract ONLY human person names (first names, last names, or full names)
+    - NEVER extract place names, countries, or cities (الاردن, عمان, فلسطين, etc.)
+    - NEVER extract words that could be verbs or adjectives (سعيد, يزيد, رامي could be verb/adj — only include if clearly used as a name)
+    - Use context to decide: "انا يزيد" → يزيد is a name. "الماء يزيد" → يزيد is a verb.
+    - Return each name in its original form as it appears in the text
+
+    Return ONLY a JSON object: {"names": [...]}
+    If no person names found, return {"names": []}
+
+    Examples:
+    "مرحبا انا يزيد" -> {"names": ["يزيد"]}  (يزيد follows انا = name)
+    "الانتاج يزيد كل يوم" -> {"names": []}  (يزيد is a verb here)
+    "انا سعيد اليوم" -> {"names": []}  (سعيد = happy, adjective)
+    "قال محمد وعلي" -> {"names": ["محمد", "علي"]}
+    "انا ربى من الاردن" -> {"names": ["ربى"]}  (الاردن is a country, not a person)
+    "انا ايهم من عمان" -> {"names": ["ايهم"]}  (عمان is a city, not a person)
+    "كيف حالك" -> {"names": []}
+    "لعب سامي" -> {"names": ["سامي"]}    
+    "اسمي راما" -> {"names": ["راما"]}
+    """
+    try:
+        data = call_llm_for_json(system_prompt, f"Text: {text}")
+        return data.get("names", [])
+    except Exception:
+        return []
