@@ -41,53 +41,29 @@ class ProcessRequest(BaseModel):
     text: str
     force_mode: Optional[str] = None  # This is the magic key!
 
-TOPIC_DICTIONARY = {
-    "Family": "العائلة",
-    "Home": "المنزل",
-    "Time": "الوقت",
-    "Countries": "الدول",
-    "Colors": "الألوان",
-    "Numbers": "الأرقام",
-    "Greetings": "التحيات"
-}
-
-@app.get("/topics")
-def get_unique_topics(db: Session = Depends(get_db)):
-    # Query the English topics from the DB
-    unique_topics = db.query(Sign.topic).filter(Sign.topic != None).distinct().all()
-    english_topics = [t[0].strip() for t in unique_topics if t[0].strip()]
-    
-    # Translate them to Arabic before sending to Flutter!
-    # (If a topic isn't in the dictionary, it just returns the original English word)
-    arabic_topics = [TOPIC_DICTIONARY.get(t, t) for t in english_topics]
-    
-    return {"topics": arabic_topics}
 
 @app.post("/process")
 def process_endpoint(request: ProcessRequest, db: Session = Depends(get_db)):
     print("=" * 40)
     print(f" Received Request from App: {request.text}")
-    
-    # 2. Check if the frontend gave us a direct order
+
     mode = request.force_mode
     
     # 3. If no order was given (Home Screen), ask the AI Classifier
     if not mode:
         router_res = run_router_model(request.text)
         mode = router_res.route
-        print(f" AI Intent Detected: {mode}")
+        print(f"Intent Detected by the model: {mode}")
     else:
         print(f" Forced Mode Triggered: {mode}")
 
-    # 4. Route to the exact pipeline
     try:
         if mode == "translation":
             response_data = translation.process_translation(request.text, db)
         elif mode == "teaching":
             response_data = teaching.process_teaching(request.text, db)
         else:
-            response_data = []
-            
+            response_data = []  
         return {"mode": mode, "data": response_data}
         
     except Exception as e:

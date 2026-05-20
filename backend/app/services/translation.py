@@ -1,222 +1,101 @@
-import os
-import torch
-import torch.nn as nn
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
-from app.core.nlp_utils import transform_to_arsl, extract_names
-from app.core.agents import run_intent_agent
+from app.core.nlp_utils import transform_to_arsl, normalize_text
+from app.core.agents import run_translation_analyzer
 from app.db.models import Sign
 from app.schemas import SkeletonFrame
 from sqlalchemy import or_, cast, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from app.core.semantic import semantic_engine
-# from transformers import SentenceTransformer
-from sentence_transformers import SentenceTransformer
-from huggingface_hub import hf_hub_download
 from app.core.nlp_utils import SIGNS_SET
+from app.services.reordering_model import local_pointer_reorder
 import re
-from app.core.nlp_utils import normalize_text
 
 load_dotenv()
-
 
 COMPOUND_SIGNS = sorted(
     [s for s in SIGNS_SET if " " in s and len(s.split()) >= 2],
     key=lambda x: -len(x)
 )
-
-class PointerAttention(nn.Module):
-    def __init__(self, hidden_dim):
-        super().__init__()
-        self.W1 = nn.Linear(hidden_dim, hidden_dim)
-        self.W2 = nn.Linear(hidden_dim, hidden_dim)
-        self.vt = nn.Linear(hidden_dim, 1)
-
-    def forward(self, decoder_hidden, encoder_outputs):
-        out = torch.tanh(self.W1(encoder_outputs) + self.W2(decoder_hidden).unsqueeze(1))
-        scores = self.vt(out).squeeze(2) 
-        return scores
-
-class PointerNet(nn.Module):
-    def __init__(self, input_dim, hidden_dim):
-        super().__init__()
-        self.encoder = nn.LSTM(input_dim, hidden_dim, batch_first=True, bidirectional=True)
-        self.decoder = nn.LSTM(hidden_dim, hidden_dim, batch_first=True)
-        self.attention = PointerAttention(hidden_dim)
-        self.reduce_h = nn.Linear(hidden_dim * 2, hidden_dim)
-        self.reduce_c = nn.Linear(hidden_dim * 2, hidden_dim)
-
-    def forward(self, x):
-        batch_size, seq_len, _ = x.shape
-        enc_out, (h_n, c_n) = self.encoder(x)
-        h_d = self.reduce_h(torch.cat((h_n[0], h_n[1]), dim=1)).unsqueeze(0)
-        c_d = self.reduce_c(torch.cat((c_n[0], c_n[1]), dim=1)).unsqueeze(0)
-        enc_out_reduced = enc_out[:, :, :512] + enc_out[:, :, 512:] 
-        all_logits = []
-        decoder_input = torch.zeros(batch_size, 1, 512).to(x.device)
-        for _ in range(seq_len):
-            _, (h_d, c_d) = self.decoder(decoder_input, (h_d, c_d))
-            logits = self.attention(h_d.squeeze(0), enc_out_reduced)
-            all_logits.append(logits)
-        return torch.stack(all_logits, dim=1)
-
-
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-EMBED_MODEL = SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2').to(DEVICE)
-
-REPO_ID = "SignlyOrg/bi-lstm-pointer-network" 
-FILENAME = "pointer_net_arsl.pth"
-
-try:
-    model_path = hf_hub_download(repo_id=REPO_ID, filename=FILENAME)
-    reorder_model = PointerNet(384, 512).to(DEVICE)
-    reorder_model.load_state_dict(torch.load(model_path, map_location=DEVICE))
-    reorder_model.eval()
-    print("PointerNet Loaded and Ready.")
-except Exception as e:
-    print(f"Error loading PointerNet: {e}")
-from app.core.nlp_utils import normalize_text
-
-def local_pointer_reorder(sentence: str) -> list[str]:
-    sentence = re.sub(r'ال(\w+)', r'\1', sentence)
-    protected = sentence
-    compound_map = {}
-    for compound in COMPOUND_SIGNS:
-        if compound in protected:
-            token = compound.replace(" ", "_")
-            protected = protected.replace(compound, token)
-            compound_map[token] = compound
-    protected = re.sub(r'ال(\w+)', r'\1', protected)
-
-    # particle gluing
-    particles = ["قبل","اثنان","كثير","في","و","على","من","إلى","عن","ثم"]
-    words = protected.split()
-    glued, i = [], 0
-    while i < len(words):
-        if words[i] in particles and i + 1 < len(words):
-            glued.append(f"{words[i]}_{words[i+1]}")
-            i += 2
-        else:
-            glued.append(words[i])
-            i += 1
-
-    clean_glued = [w.replace("؟", "") for w in glued]
-    n = len(clean_glued)
-    if n == 0: return []
-
-    with torch.no_grad():
-        emb = torch.FloatTensor(EMBED_MODEL.encode(clean_glued)).unsqueeze(0).to(DEVICE)
-        padded_x = torch.zeros(1, 20, 384).to(DEVICE)
-        padded_x[0, :n] = emb
-        logits = reorder_model(padded_x)[0]
-        indices, mask = [], torch.zeros(n).to(DEVICE)
-        for step in range(n):
-            step_logits = logits[step, :n] + mask
-            idx = torch.argmax(step_logits).item()
-            indices.append(idx)
-            mask[idx] = -1e9
-        reordered = [clean_glued[idx] for idx in indices]
-
-    # restore compounds + expand particles
-    result = []
-    for w in reordered:
-        if w in compound_map:
-            result.append(compound_map[w])
-        else:
-            result.extend(w.replace("_", " ").split())
-
-    return result
+ARABIC_PREPOSITIONS = {"الى", "إلى", "عن", "على", "في", "حتى", "مذ", "منذ","من"}
 
 def process_translation(user_input: str, db: Session):
-    intent_res = run_intent_agent(user_input, route="translation")
-    clean_text = intent_res.extracted_text
+    intent_res = run_translation_analyzer(user_input)
+    clean_text = normalize_text(intent_res.extracted_text)
+    names = [normalize_text(n) for n in intent_res.names]
+    
     print(f"Cleaned Input: '{clean_text}'")
+    print(f"Extracted names: '{names}'")
 
-    # Single letter input handle directly
     if len(clean_text) == 1 and re.match(r'[\u0600-\u06FF]', clean_text):
-        print(f"Single letter input: '{clean_text}'. Looking up directly.")
         sign_entry = find_sign_in_db(clean_text, db)
-        if sign_entry:
-            return [SkeletonFrame(skeleton_url=sign_entry.skeleton_url, label=clean_text, delay_ms=0)]
-        else:
-            print(f"Letter '{clean_text}' not found in DB.")
-            return []
+        return [SkeletonFrame(skeleton_url=sign_entry.skeleton_url, label=clean_text, delay_ms=0)]
 
-    # Check FIXED_PHRASES before reordering 
-    from app.core.nlp_utils import FIXED_PHRASES
+    # Protect names by adding _ to them
+    for name in names:
+        if name in clean_text:
+            protected_name = name.replace(" ", "_") + "_"
+            clean_text = clean_text.replace(name, protected_name)
+
+    # Protect DB Compound Signs
+    for compound in COMPOUND_SIGNS:
+        if compound in clean_text:
+            protected_compound = compound.replace(" ", "_")
+            clean_text = clean_text.replace(compound, protected_compound)
+
+    # Protect Exact Single-Word DB Matches
+    text_words = clean_text.split()
+    filtered_words = []
+    for w in text_words:
+        if w in ARABIC_PREPOSITIONS: continue  
+        if w in SIGNS_SET and "_" not in w: w = w + "_" 
+        filtered_words.append(w)
+    
+    clean_text = " ".join(filtered_words)
+
+    # Lemmatization (CAMeL Tools)
+    lemmas_list = transform_to_arsl(clean_text)
+    print(f"Lemmas after CAMeL: {lemmas_list}")
+
+    # Syntax Reordering (Pointer Network)
+    if len(lemmas_list) > 2:
+        # Reorder model expects a string
+        lemmas_string = " ".join(lemmas_list)
+        reordered_words = local_pointer_reorder(lemmas_string)
+        print(f"Reordered: {lemmas_string} -> {reordered_words}")
+    else:
+        print(f"Short sentence — skipping reorder.")
+        reordered_words = lemmas_list
+
     response_data = []
-    remaining_text = clean_text
+    
+    for word in reordered_words:
+        clean_word = word.replace("_", " ").strip()
 
-    for phrase in FIXED_PHRASES:
-        if phrase in remaining_text:
-            sign_entry = find_sign_in_db(phrase, db)
-            if sign_entry:
-                add_sign_to_response(response_data, sign_entry, phrase)
-            remaining_text = remaining_text.replace(phrase, "").strip()
-
-    # If nothing left after removing fixed phrases, return early
-    if not remaining_text:
-        return response_data
-
-    # Continue pipeline with remaining text only
-    clean_text = remaining_text
-
-    # Name detection
-    detected_names = extract_names(clean_text)
-    print(f"Detected Names: {detected_names}")
-    # Temporarily inject detected names into LEMMA_CORRECTIONS
-    # so CAMeL returns them unchanged
-    from app.core import nlp_utils
-    for name in detected_names:
-        normalized = normalize_text(name)
-        nlp_utils.LEMMA_CORRECTIONS[normalized] = name
-
-    try:
-        words = clean_text.split()
-        if len(words) > 3:
-            reordered_words = local_pointer_reorder(clean_text)
-            print(f"Reordered: {clean_text} -> {reordered_words}")
-            final_lemmas = transform_to_arsl(" ".join(reordered_words))
-        else:
-            print(f"Short sentence — skipping reorder, using N-gram directly.")
-            final_lemmas = transform_to_arsl(clean_text)
-        print(f"Final lemmas: {final_lemmas}")
-    except Exception as e:
-        print(f"PointerNet Failed: {e}. Using NLP order.")
-        final_lemmas = transform_to_arsl(clean_text)
-
-    for lemma in final_lemmas:
-
-        if normalize_text(lemma) in detected_names:
-            print(f"'{lemma}' is a name. Fingerspelling immediately.")
-            fingerspelling_skeletons = get_fingerspelling_sequence(lemma, db, is_name=True)
-            response_data.extend(fingerspelling_skeletons)
+        if clean_word in names:
+            print(f"'{clean_word}' is a name. Fingerspelling immediately.")
+            response_data.extend(get_fingerspelling_sequence(clean_word, db, is_name=True))
             continue
 
-        # Direct DB match
-        sign_entry = find_sign_in_db(lemma, db)
+        sign_entry = find_sign_in_db(clean_word, db)
         if sign_entry:
-            add_sign_to_response(response_data, sign_entry, lemma)
+            add_sign_to_response(response_data, sign_entry, clean_word)
             continue
 
-        # Semantic search
-        print(f"Direct match failed for '{lemma}'. Trying Semantic Search...")
-        semantic_result = semantic_engine.search(lemma)
+        print(f"Direct match failed for '{clean_word}'. Trying Semantic Search...")
+        semantic_result = semantic_engine.search(clean_word)
 
         if semantic_result:
             if semantic_result["type"] == "match":
                 alt_word = semantic_result["word"]
-                print(f"AI Suggestion: Replace '{lemma}' with '{alt_word}' ({semantic_result['score']:.2f})")
                 alt_sign = find_sign_in_db(alt_word, db)
                 if alt_sign:
-                    add_sign_to_response(response_data, alt_sign, lemma)
+                    add_sign_to_response(response_data, alt_sign, clean_word)
                     continue
 
             elif semantic_result["type"] == "explain":
-                explanation_words = semantic_result["words"]
-                print(f"AI Explanation: '{lemma}' -> {explanation_words}")
                 found_explanation = False
-                for w in explanation_words:
+                for w in semantic_result["words"]:
                     s = find_sign_in_db(w, db)
                     if s:
                         add_sign_to_response(response_data, s, w)
@@ -224,12 +103,11 @@ def process_translation(user_input: str, db: Session):
                 if found_explanation:
                     continue
 
-        # Fingerspell as last resort
-        print(f"All lookups failed for '{lemma}'. Fingerspelling.")
-        fingerspelling_skeletons = get_fingerspelling_sequence(lemma, db, is_name=False)
-        response_data.extend(fingerspelling_skeletons)
+        print(f"All lookups failed for '{clean_word}'. Fingerspelling.")
+        response_data.extend(get_fingerspelling_sequence(clean_word, db, is_name=False))
 
     return response_data
+
 def find_sign_in_db(word: str, db: Session):
     return db.query(Sign).filter(
         or_(

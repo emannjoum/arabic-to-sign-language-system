@@ -4,17 +4,14 @@ from app.db.models import Bookmark, Sign, User
 
 
 def add_bookmark(username: str, word: str, db: Session):
-    # Find the user
     user = db.query(User).filter(User.username == username).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # Find the sign by word
     sign = db.query(Sign).filter(Sign.word == word).first()
     if not sign:
         raise HTTPException(status_code=404, detail=f"Sign '{word}' not found in database")
 
-    # Check if already bookmarked
     existing = db.query(Bookmark).filter(
         Bookmark.user_id == user.id,
         Bookmark.sign_id == sign.id
@@ -22,7 +19,6 @@ def add_bookmark(username: str, word: str, db: Session):
     if existing:
         return {"message": "Already bookmarked"}
 
-    # Save bookmark
     bookmark = Bookmark(user_id=user.id, sign_id=sign.id)
     db.add(bookmark)
     db.commit()
