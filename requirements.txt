@@ -18,3 +18,7 @@ pydantic
 openpyxl
 transformers
 sentencepiece
+nltk
+rouge-score
+scipy
+sentence-transformers
