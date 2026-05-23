@@ -4,8 +4,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/skeleton_frame.dart';
 
 class ApiService {
-  // static const String baseUrl = 'http://100.116.62.123:8000';
-  static const String baseUrl = 'http://127.0.0.1:8000';
+  static const String baseUrl = 'http://100.116.62.123:8000';
+  //static const String baseUrl = 'http://127.0.0.1:8000';
   // static const String baseUrl = 'http://192.168.1.11:8000';
 
   static const storage = FlutterSecureStorage();

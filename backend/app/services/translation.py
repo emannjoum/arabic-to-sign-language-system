@@ -10,6 +10,7 @@ from app.core.semantic import semantic_engine
 from app.core.nlp_utils import SIGNS_SET
 from app.services.reordering_model import local_pointer_reorder
 import re
+from app.core.numbers_utils import get_protected_number_sequence
 
 load_dotenv()
 
@@ -30,6 +31,27 @@ def process_translation(user_input: str, db: Session):
     if len(clean_text) == 1 and re.match(r'[\u0600-\u06FF]', clean_text):
         sign_entry = find_sign_in_db(clean_text, db)
         return [SkeletonFrame(skeleton_url=sign_entry.skeleton_url, label=clean_text, delay_ms=0)]
+
+    #if the to-be-translated sentence has a number we use the numbers function
+    number_map = {}
+    def mask_number_sequence(match):
+        full_match = match.group()
+        placeholder = f"[رقم_{len(number_map)}]" # Creates [رقم_0], [رقم_1], etc...
+
+        # Split the match by spaces (in case the LLM spaced out a phone number)
+        sub_tokens = full_match.split()
+
+        sequence_parts = []
+        for token in sub_tokens:
+            sequence_parts.extend(get_protected_number_sequence(token))
+            
+        number_map[placeholder] = sequence_parts
+        return placeholder
+    
+    # This regex catches integers AND decimals using dot, arabic comma, or english comma
+    number_sequence_pattern = r'\b\d+(?:[.\٫،]\d+)?(?:\s+\d+(?:[.\٫،]\d+)?)*\b'
+    clean_text = re.sub(number_sequence_pattern, mask_number_sequence, clean_text)
+    print(f"Text after masking: {clean_text}")
 
     # Protect names by adding _ to them
     for name in names:
@@ -59,17 +81,23 @@ def process_translation(user_input: str, db: Session):
 
     # Syntax Reordering (Pointer Network)
     if len(lemmas_list) > 2:
-        # Reorder model expects a string
-        lemmas_string = " ".join(lemmas_list)
+        lemmas_string = " ".join(lemmas_list) # Reorder model expects a string
         reordered_words = local_pointer_reorder(lemmas_string)
         print(f"Reordered: {lemmas_string} -> {reordered_words}")
     else:
         print(f"Short sentence — skipping reorder.")
         reordered_words = lemmas_list
 
-    response_data = []
-    
+    # 3. Unmasking: Inject the numbers back into the reordered sentence
+    final_sequence = []
     for word in reordered_words:
+        # If the word is one of our placeholders, expand it
+        if word in number_map: final_sequence.extend(number_map[word])
+        else: final_sequence.append(word)
+
+    response_data = []
+
+    for word in final_sequence:
         clean_word = word.replace("_", " ").strip()
 
         if clean_word in names:
@@ -127,11 +155,13 @@ def get_fingerspelling_sequence(word: str, db: Session, is_name: bool = False):
     skeletons = []
     delay = 700 if is_name else 500
     for letter in word:
-        letter_sign = db.query(Sign).filter(Sign.word == letter).first()
+        clean_letter = letter.replace('أ', 'ا').replace('إ', 'ا').replace('آ', 'ا').replace('ة', 'ه')
+        
+        letter_sign = db.query(Sign).filter(Sign.word == clean_letter).first()
         if letter_sign:
             skeletons.append(SkeletonFrame(
                 skeleton_url=letter_sign.skeleton_url,
-                label=letter,
+                label=clean_letter,
                 delay_ms=delay
             ))
     return skeletons

@@ -15,6 +15,7 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from app.core.security import SECRET_KEY, ALGORITHM
 from app.services import bookmarks as bookmark_service
+import re
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
@@ -46,6 +47,9 @@ class ProcessRequest(BaseModel):
 def process_endpoint(request: ProcessRequest, db: Session = Depends(get_db)):
     print("=" * 40)
     print(f" Received Request from App: {request.text}")
+    
+    clean_input = re.sub(r'[a-zA-Z]', '', request.text).strip()
+    if not clean_input: raise HTTPException(status_code=400, detail="Arabic text required")
 
     mode = request.force_mode
     
@@ -90,3 +94,9 @@ def remove_bookmark(word: str, db: Session = Depends(get_db), username: str = De
 @app.get("/bookmarks")
 def get_bookmarks(db: Session = Depends(get_db), username: str = Depends(get_current_user)):
     return bookmark_service.get_bookmarks(username, db)
+
+@app.get("/topics")
+def get_topics(db: Session = Depends(get_db)):
+    topics = db.query(Sign.topic).filter(Sign.topic.isnot(None)).distinct().all()
+    topic_list = [t[0] for t in topics if t[0]]
+    return {"topics": topic_list}

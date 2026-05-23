@@ -92,13 +92,20 @@ def run_topic_agent(text: str) -> TopicResult:
 
 def run_translation_analyzer(text: str) -> TranslationAnalysisResult:
     system_prompt = """
-    You are an expert AI system with TWO simultaneous tasks: Content Extraction and Arabic Named Entity Recognition (PERSON NAMES ONLY).
+    You are an expert AI system with TWO simultaneous tasks: Content Extraction & Number Formatting, and Arabic Named Entity Recognition (PERSON NAMES ONLY).
 
-    --- TASK 1: CONTENT EXTRACTION ---
-    Your role is to EXTRACT the specific content the user wants processed or translated.
-    Remove polite phrases ("please", "can you", "لو سمحت"), command words and phrases ("translate", "how do you say", "what is the sign for", "ترجم", "ترجم جملة", "كيف احكي"), and punctuation.
-    If the text contains the word 'من' and it is being used as a Question Word or Relative Pronoun meaning 'Who', you must replace it with the colloquial word 'مين'.
-    If it means 'From', leave it exactly as 'من'.
+    --- TASK 1: CONTENT EXTRACTION & Number Formatting ---
+    EXTRACT the specific content the user wants processed or translated, adhering to these rules:
+    1. Remove polite phrases ("please", "لو سمحت"), command words ("translate", "ترجم", "كيف احكي"), and punctuation.
+    2. If the text contains 'من' acting as a Question Word/Relative Pronoun meaning 'Who', replace it with 'مين'. If it means 'From', leave it as 'من'.
+    3. NUMBERS CONVERSION: Convert all Eastern Arabic numerals (٠١٢٣٤٥٦٧٨٩) to Western/English numerals (0123456789).
+    4. NUMBERS SPACING (CRITICAL): 
+       - QUANTITIES (years, prices, counts, amounts): Keep them as one block (e.g., "سعرها 25000", "عام 1970").
+       - IDENTIFIERS (phone numbers, national IDs, passwords, building/room numbers): Insert a single space between EVERY digit so they are spelled out one by one (e.g., "رقم هاتفي 9627912" becomes "رقم هاتفي 9 6 2 7 9 1 2").
+    5. DETACH OCNJUNCTION: If the conjunction 'و' (and) is attached to a word, separate it with a space.
+        Example: "أحمد ومحمد" -> "أحمد و محمد".
+        Example: "فذهبنا" -> "ف ذهبنا".
+        Do not split words where 'و' is part of the root word (e.g., keep "ورقة" as "ورقة").
 
     --- TASK 2: NAME EXTRACTION ---
     Your role is to detect PERSON NAMES ONLY from the original text.
@@ -129,6 +136,18 @@ def run_translation_analyzer(text: str) -> TranslationAnalysisResult:
     User: "الانتاج يزيد كل يوم"
     Output: {"extracted_text": "الانتاج يزيد كل يوم", "names": []}
 
+    User: "ترجم رقم هاتفي هو ٠٧٩١٢٣٤٥"
+    Output: {"extracted_text": "رقم هاتفي هو 0 7 9 1 2 3 4 5", "names": []}
+
+    User: "رقمي الوطني 9981023456"
+    Output: {"extracted_text": "رقمي الوطني 9 9 8 1 0 2 3 4 5 6", "names": []}
+
+    User: "ولدت عام ١٩٩٨ واسمي رامي"
+    Output: {"extracted_text": "ولدت عام 1998 واسمي رامي", "names": ["رامي"]}
+
+    User: "معي ٢٥٠٠٠ دينار"
+    Output: {"extracted_text": "معي 25000 دينار", "names": []}
+
     User: "انا سعيد اليوم"
     Output: {"extracted_text": "انا سعيد اليوم", "names": []}
 
@@ -137,9 +156,6 @@ def run_translation_analyzer(text: str) -> TranslationAnalysisResult:
 
     User: "انا ربى من الاردن"
     Output: {"extracted_text": "انا ربى من الاردن", "names": ["ربى"]}
-
-    User: "انا ايهم من عمان"
-    Output: {"extracted_text": "انا ايهم من عمان", "names": ["ايهم"]}
     
     User: "ترجم جملة السلام عليكم يا احمد"
     Output: {"extracted_text": "السلام عليكم يا احمد", "names": ["احمد"]}

@@ -15,10 +15,10 @@ import torch
 import faiss
 from transformers import AutoTokenizer, AutoModel
 from typing import List
-from backend.app.db.database import SessionLocal, Base
+from app.db.database import SessionLocal, Base
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.dialects.postgresql import ARRAY 
-from backend.app.db.models import Sign
+from app.db.models import Sign
 
 EMBED_MODEL = "silma-ai/silma-embedding-sts-v0.1"
 BOT_USER_AGENT = "SignlySemanticEng/1.0 (https://github.com/signly/signly; signly4@gmail.com)"
@@ -369,4 +369,7 @@ class SemanticEngine:
 
         # 4. Fingerspelling
         print(f"[Log - Terminal Fallback] All semantic and dictionary logic exhausted. Defaulting to fingerspelling for '{q}'.")
-        return {"type": "spell", "word": q}
+        return None #{"type": "spell", "word": q}
+    
+
+semantic_engine = SemanticEngine()
