@@ -29,6 +29,8 @@ dependencies:
 # The flutter-specific configurations go HERE, at the root level, not under dependencies.
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/
 
 dev_dependencies:
   flutter_lints: ^4.0.0
