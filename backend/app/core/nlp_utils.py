@@ -24,7 +24,7 @@ try:
     print("CAMeL Tools loaded successfully.")
 except Exception as e:
     print(f"Error loading CAMeL Tools data: {e}")
-    print("Did you run 'camel_data -i morphology-db-msa-r13'?")
+    print("Did you run 'camel_data -i morphology-db-msa-r13' and 'camel_data -i disambig-mle-calima-msa-r13'?")
     raise e
 
 ner_pipeline = pipeline("ner", model="CAMeL-Lab/bert-base-arabic-camelbert-mix-ner", aggregation_strategy="simple")
