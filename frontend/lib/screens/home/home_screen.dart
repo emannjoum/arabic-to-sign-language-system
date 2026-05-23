@@ -1,164 +1,434 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../core/colors.dart';
 import '../../services/api_service.dart';
-import '../translation/translation_screen.dart';
-import '../learning/learning_screen.dart';
+import '../../models/skeleton_frame.dart';
 
 class HomeScreen extends StatefulWidget {
   final VoidCallback? onNavigateToBookmarks;
-  const HomeScreen({super.key, this.onNavigateToBookmarks});
+  final VoidCallback? onNavigateToProfile;
+  final VoidCallback? onNavigateToLearning;
+  final VoidCallback? onNavigateToTranslation;
+  final void Function(int index, String text, ProcessResponse response)?
+  onNavigateWithResponse;
+  const HomeScreen({
+    super.key,
+    this.onNavigateToBookmarks,
+    this.onNavigateToProfile,
+    this.onNavigateToLearning,
+    this.onNavigateToTranslation,
+    this.onNavigateWithResponse,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // 1. Controller to read what you type!
-  final TextEditingController _chatController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   bool _isLoading = false;
 
-  // 2. The Send Function
   Future<void> _handleSend() async {
-    final text = _chatController.text.trim();
+    final text = _searchController.text.trim();
     if (text.isEmpty) return;
-
     setState(() => _isLoading = true);
-
-    // Call your FastAPI backend! (Notice we do NOT force a mode here)
     final response = await ApiService.processText(text);
-
     if (mounted) {
       setState(() => _isLoading = false);
-      
       if (response != null) {
-        // THE SMART ROUTER: Navigate based on the AI's decision!
         if (response.mode == "translation") {
-          print("🚀 AI Routing to Translation Screen!");
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => TranslationScreen(
-                initialText: text,
-                initialResponse: response, 
-              ),
-            ),
-          );
+          widget.onNavigateWithResponse?.call(2, text, response);
         } else if (response.mode == "teaching") {
-          print("🚀 AI Routing to Learning Screen!");
-          // TODO: Once you build the LearningScreen, uncomment this!
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => LearningScreen(
-                initialText: text,
-                initialResponse: response, 
-              ),
-            ),
-          );
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("AI Detected 'Teaching' Mode! (Screen pending)")),
-          );
+          widget.onNavigateWithResponse?.call(1, text, response);
         }
-
-        _chatController.clear(); // Clear the box after sending
+        _searchController.clear();
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Error connecting to backend.")),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text("تعذّر الاتصال بالخادم")));
       }
     }
   }
 
   @override
   void dispose() {
-    _chatController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.end,
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(18, 20, 18, 40),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildTopBar(),
+            const SizedBox(height: 16),
+            _buildHeroCard(),
+            const SizedBox(height: 16),
+            _buildSearchBar(),
+            const SizedBox(height: 28),
+            _buildQuickAccess(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Top bar ───────────────────────────────────────────────────────────────
+
+  Widget _buildTopBar() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.line),
+          ),
+          alignment: Alignment.center,
+          child: const Icon(
+            Icons.notifications_outlined,
+            size: 18,
+            color: AppColors.ink,
+          ),
+        ),
+        Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.line),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x14004B49),
+                blurRadius: 10,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Image.asset(
+            'assets/images/SignlyLogo.jpeg',
+            fit: BoxFit.contain,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Hero card ─────────────────────────────────────────────────────────────
+
+  Widget _buildHeroCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: AppColors.primary,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Stack(
         children: [
-          // Top Header
-          const Center(
-            child: Text("Signly - Jordanian Sign Language", style: TextStyle(fontSize: 20, color: AppColors.textBlack)),
-          ),
-          const SizedBox(height: 16),
-          const Divider(color: AppColors.borderGray, thickness: 1),
-          const SizedBox(height: 24),
-
-          // Red Welcome Banner
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 32),
-            decoration: BoxDecoration(
-              color: AppColors.primaryRed,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blueAccent, width: 2),
-            ),
-            child: const Center(
-              child: Text("مرحبا بك في signly!!", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.white)),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          // Chat Input Box WIRED UP
-          TextField(
-            controller: _chatController,
-            maxLines: 4,
-            decoration: InputDecoration(
-              hintText: "Enter Chat...",
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: AppColors.borderGray),
+          Positioned(
+            left: -10,
+            bottom: -10,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.06),
               ),
             ),
           ),
-          const SizedBox(height: 16),
-
-          // Action Buttons
-          Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Red Send Button WIRED UP
-              Expanded(
-                flex: 1,
-                child: ElevatedButton.icon(
-                  onPressed: _isLoading ? null : _handleSend,
-                  icon: _isLoading 
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Icon(Icons.send_outlined, size: 18),
-                  label: Text(_isLoading ? "..." : "إرسال"),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryRed,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.mintDot,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'مدرّب في Signly',
+                      style: GoogleFonts.tajawal(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 16),
-              // Grey Category Button (Stubbed)
-              Expanded(
-                flex: 1,
-                child: ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[300], foregroundColor: AppColors.textBlack, padding: const EdgeInsets.symmetric(vertical: 16), elevation: 0),
-                  child: const Text("التصنيفات"),
+              const SizedBox(height: 12),
+              Text(
+                'ماذا تودّ أن\nتتعلّم اليوم؟',
+                style: GoogleFonts.tajawal(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  height: 1.3,
+                  letterSpacing: -0.5,
                 ),
               ),
-              const SizedBox(width: 16),
-              // Grey Bookmark Button (Stubbed)
-              Expanded(
-                flex: 1,
-                child: ElevatedButton(
-                  onPressed: () => widget.onNavigateToBookmarks?.call(),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[300], foregroundColor: AppColors.textBlack, padding: const EdgeInsets.symmetric(vertical: 16), elevation: 0),
-                  child: const Text("المحفوظات"),
+              const SizedBox(height: 6),
+              Text(
+                'ابحث عن أي كلمة وشاهد إشاراتها',
+                style: GoogleFonts.tajawal(
+                  fontSize: 12,
+                  color: Colors.white.withOpacity(0.7),
+                  fontWeight: FontWeight.w400,
                 ),
               ),
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  // ── Search bar ────────────────────────────────────────────────────────────
+
+  Widget _buildSearchBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.line),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x10004B49),
+            blurRadius: 16,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: _isLoading ? null : _handleSend,
+            child: Container(
+              height: 42,
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(11),
+              ),
+              alignment: Alignment.center,
+              child: _isLoading
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.arrow_back,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'ابحث',
+                          style: GoogleFonts.tajawal(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              autofocus: true,
+              textDirection: TextDirection.rtl,
+              style: GoogleFonts.tajawal(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: AppColors.ink,
+              ),
+              decoration: InputDecoration(
+                hintText: 'اكتب كلمة أو موضوعاً...',
+                hintStyle: GoogleFonts.tajawal(
+                  fontSize: 15,
+                  color: AppColors.mute,
+                ),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+                filled: false,
+              ),
+              onSubmitted: (_) => _handleSend(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Quick access ──────────────────────────────────────────────────────────
+
+  Widget _buildQuickAccess() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'الوصول السريع',
+          style: GoogleFonts.tajawal(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            color: AppColors.ink,
+          ),
+        ),
+        const SizedBox(height: 14),
+        GridView.count(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 2.8,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            _QuickCard(
+              label: 'ترجمة',
+              sub: 'نص ← إشارة',
+              icon: Icons.translate_outlined,
+              bg: AppColors.primarySoft,
+              iconColor: AppColors.primary,
+              onTap: widget.onNavigateToTranslation,
+            ),
+            _QuickCard(
+              label: 'تعلّم',
+              sub: 'إشاراتي',
+              icon: Icons.menu_book_outlined,
+              bg: const Color(0xFFFFF4EC),
+              iconColor: AppColors.accent,
+              onTap: widget.onNavigateToLearning,
+            ),
+            _QuickCard(
+              label: 'المحفوظات',
+              sub: 'قائمتي',
+              icon: Icons.bookmark_border,
+              bg: const Color(0xFFEDF5F3),
+              iconColor: AppColors.primary,
+              onTap: widget.onNavigateToBookmarks,
+            ),
+            _QuickCard(
+              label: 'الملف الشخصي',
+              sub: 'حسابي',
+              icon: Icons.person_outline,
+              bg: const Color(0xFFF0EEFF),
+              iconColor: const Color(0xFF7C5CBF),
+              onTap: widget.onNavigateToProfile,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ── Card ──────────────────────────────────────────────────────────────────────
+
+class _QuickCard extends StatelessWidget {
+  final String label;
+  final String sub;
+  final IconData icon;
+  final Color bg;
+  final Color iconColor;
+  final VoidCallback? onTap;
+
+  const _QuickCard({
+    required this.label,
+    required this.sub,
+    required this.icon,
+    required this.bg,
+    required this.iconColor,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: GoogleFonts.tajawal(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.ink,
+                  ),
+                ),
+                Text(
+                  sub,
+                  style: GoogleFonts.tajawal(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.mute,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
