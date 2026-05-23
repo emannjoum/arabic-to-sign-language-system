@@ -18,3 +18,9 @@ openpyxl
 transformers
 sentencepiece
 openai
+accelerate
+arabic-reshaper
+python-bidi
+nltk
+scipy
+sentence-transformers
