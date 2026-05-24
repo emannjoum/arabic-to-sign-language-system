@@ -55,7 +55,7 @@ def process_endpoint(request: ProcessRequest, db: Session = Depends(get_db)):
     
     # 3. If no order was given (Home Screen), ask the AI Classifier
     if not mode:
-        router_res = run_router_model(request.text)
+        router_res = run_router_model(clean_input)
         mode = router_res.route
         print(f"Intent Detected by the model: {mode}")
     else:
@@ -63,9 +63,9 @@ def process_endpoint(request: ProcessRequest, db: Session = Depends(get_db)):
 
     try:
         if mode == "translation":
-            response_data = translation.process_translation(request.text, db)
+            response_data = translation.process_translation(clean_input, db)
         elif mode == "teaching":
-            response_data = teaching.process_teaching(request.text, db)
+            response_data = teaching.process_teaching(clean_input, db)
         else:
             response_data = []  
         return {"mode": mode, "data": response_data}

@@ -42,14 +42,36 @@ class _SplashState extends State<_Splash> {
 
   Future<void> _check() async {
     final token = await ApiService.getToken();
+    
+    // 1. If there's no token at all, go straight to Login
+    if (token == null) {
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+      return;
+    }
+
+    // 2. If a token exists, test it by trying to get the user's profile
+    final profile = await ApiService.getProfile();
+    
     if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            token != null ? const AppNavigation() : const LoginScreen(),
-      ),
-    );
+
+    if (profile == null) {
+      // 3. The token is expired! Delete it and go to Login
+      await ApiService.logout(); 
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    } else {
+      // 4. The token is healthy! Go to the main app
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const AppNavigation()),
+      );
+    }
   }
 
   @override
