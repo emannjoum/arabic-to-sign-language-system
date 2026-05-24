@@ -131,83 +131,6 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                       ],
                     ),
                   ),
-                  // Right block (RTL: left — actions)
-                  Row(
-                    children: [
-                      // Sort dropdown
-                      Container(
-                        height: 42,
-                        padding: const EdgeInsets.symmetric(horizontal: 14),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.line),
-                        ),
-                        alignment: Alignment.center,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'الترتيب: الأحدث',
-                              style: GoogleFonts.tajawal(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.ink,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Icon(
-                              Icons.keyboard_arrow_down,
-                              size: 16,
-                              color: AppColors.mute,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      // Add button
-                      GestureDetector(
-                        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("إضافة كلمة — قريباً")),
-                        ),
-                        child: Container(
-                          height: 42,
-                          padding: const EdgeInsets.symmetric(horizontal: 18),
-                          decoration: BoxDecoration(
-                            color: AppColors.primary,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x40004B49),
-                                blurRadius: 16,
-                                offset: Offset(0, 6),
-                              ),
-                            ],
-                          ),
-                          alignment: Alignment.center,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.add,
-                                color: Colors.white,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'إضافة',
-                                style: GoogleFonts.tajawal(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -227,14 +150,18 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                     ? _EmptyState()
                     : LayoutBuilder(
                         builder: (context, constraints) {
-                          final cols = constraints.maxWidth < 500 ? 2 : 3;
+                          final cols = constraints.maxWidth < 500
+                              ? 2
+                              : constraints.maxWidth < 900
+                              ? 3
+                              : 4;
                           return GridView.builder(
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: cols,
                                   crossAxisSpacing: 18,
                                   mainAxisSpacing: 18,
-                                  childAspectRatio: 0.78,
+                                  childAspectRatio: 1.4,
                                 ),
                             itemCount: _bookmarks.length,
                             itemBuilder: (context, index) {
