@@ -126,8 +126,12 @@ class SemanticEngine:
         def _is_safe(w: str) -> bool:
             if len(w) <= 1: return False
             base = w[2:] if w.startswith("ال") else w
-            base_norm = get_arabic_variations(base)
-            return w not in STOP_WORDS and base not in STOP_WORDS and base_norm not in STOP_WORDS
+            base_norms = get_arabic_variations(base)
+            return (
+                w not in STOP_WORDS and
+                base not in STOP_WORDS and
+                not any(norm in STOP_WORDS for norm in base_norms)
+            )
 
         words_to_try = [word]
         if not word.startswith("ال"):
