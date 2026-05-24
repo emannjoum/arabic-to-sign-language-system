@@ -316,47 +316,52 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         const SizedBox(height: 14),
-        GridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 2.8,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          children: [
-            _QuickCard(
-              label: 'ترجمة',
-              sub: 'نص ← إشارة',
-              icon: Icons.translate_outlined,
-              bg: AppColors.primarySoft,
-              iconColor: AppColors.primary,
-              onTap: widget.onNavigateToTranslation,
-            ),
-            _QuickCard(
-              label: 'تعلّم',
-              sub: 'إشاراتي',
-              icon: Icons.menu_book_outlined,
-              bg: const Color(0xFFFFF4EC),
-              iconColor: AppColors.accent,
-              onTap: widget.onNavigateToLearning,
-            ),
-            _QuickCard(
-              label: 'المحفوظات',
-              sub: 'قائمتي',
-              icon: Icons.bookmark_border,
-              bg: const Color(0xFFEDF5F3),
-              iconColor: AppColors.primary,
-              onTap: widget.onNavigateToBookmarks,
-            ),
-            _QuickCard(
-              label: 'الملف الشخصي',
-              sub: 'حسابي',
-              icon: Icons.person_outline,
-              bg: const Color(0xFFF0EEFF),
-              iconColor: const Color(0xFF7C5CBF),
-              onTap: widget.onNavigateToProfile,
-            ),
-          ],
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final ratio = constraints.maxWidth < 400 ? 1.8 : 2.8;
+            return GridView.count(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: ratio,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: [
+                _QuickCard(
+                  label: 'ترجمة',
+                  sub: 'نص ← إشارة',
+                  icon: Icons.translate_outlined,
+                  bg: AppColors.primarySoft,
+                  iconColor: AppColors.primary,
+                  onTap: widget.onNavigateToTranslation,
+                ),
+                _QuickCard(
+                  label: 'تعلّم',
+                  sub: 'إشاراتي',
+                  icon: Icons.menu_book_outlined,
+                  bg: const Color(0xFFFFF4EC),
+                  iconColor: AppColors.accent,
+                  onTap: widget.onNavigateToLearning,
+                ),
+                _QuickCard(
+                  label: 'المحفوظات',
+                  sub: 'قائمتي',
+                  icon: Icons.bookmark_border,
+                  bg: const Color(0xFFEDF5F3),
+                  iconColor: AppColors.primary,
+                  onTap: widget.onNavigateToBookmarks,
+                ),
+                _QuickCard(
+                  label: 'الملف الشخصي',
+                  sub: 'حسابي',
+                  icon: Icons.person_outline,
+                  bg: const Color(0xFFF0EEFF),
+                  iconColor: const Color(0xFF7C5CBF),
+                  onTap: widget.onNavigateToProfile,
+                ),
+              ],
+            );
+          },
         ),
       ],
     );
