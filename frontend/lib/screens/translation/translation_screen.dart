@@ -70,58 +70,51 @@ class _TranslationScreenState extends State<TranslationScreen> {
   }
 
   void _buildWordGroups(List<SkeletonFrame> frames) {
-    final groups = <_WordGroup>[];
-    int i = 0;
-    while (i < frames.length) {
-      final frame = frames[i];
-      if (_isSingleLetter(frame.label)) {
-        var name = frame.label;
-        final grp = [frame];
-        int j = i + 1;
-        while (j < frames.length && _isSingleLetter(frames[j].label)) {
-          name += frames[j].label;
-          grp.add(frames[j]);
-          j++;
-        }
-        final ms = grp.fold(0, (s, f) => s + f.delayMs);
-        groups.add(_WordGroup(label: name, duration: _fmtMs(ms), frames: grp));
-        i = j;
-      } else {
-        groups.add(
-          _WordGroup(
-            label: frame.label,
-            duration: _fmtMs(frame.delayMs),
-            frames: [frame],
-          ),
-        );
-        i++;
-      }
+    print('Total frames received: ${frames.length}');
+    for (final f in frames) {
+      print('  label=${f.label}');
     }
+    final groups = frames
+        .map(
+          (f) => _WordGroup(
+            label: f.label,
+            duration: _fmtMs(f.delayMs),
+            frames: [f],
+          ),
+        )
+        .toList();
+    print('Total groups created: ${groups.length}');
     setState(() => _wordGroups = groups);
   }
 
   bool _isSingleLetter(String l) =>
-      l.length == 1 && RegExp(r'[\u0600-\u06FF]').hasMatch(l);
+      l.length == 1 && RegExp(r'[؀-ۿ]').hasMatch(l);
 
   void _videoListener() {
     if (_videoController == null) return;
     final v = _videoController!.value;
-    if (v.isInitialized && !v.isPlaying && v.position >= v.duration) {
+    if (!v.isInitialized) return;
+    final finished =
+        !v.isPlaying &&
+        v.duration.inMilliseconds > 0 &&
+        v.position.inMilliseconds >= v.duration.inMilliseconds - 100;
+    final stalled =
+        !v.isPlaying &&
+        v.duration == Duration.zero &&
+        v.position.inMilliseconds > 500;
+    if (finished || stalled) {
       _videoController!.removeListener(_videoListener);
-      _seekToWord((_activeWordIndex + 1) % _groups.length);
+      final nextIndex = _activeWordIndex + 1;
+      if (nextIndex < _groups.length) {
+        _seekToWord(nextIndex);
+      }
     }
   }
 
   void _seekToWord(int idx) {
     setState(() => _activeWordIndex = idx);
-    if (_wordGroups.isEmpty) return;
-    int flat = 0;
-    for (int i = 0; i < idx && i < _wordGroups.length; i++) {
-      flat += _wordGroups[i].frames.length;
-    }
-    if (flat < (_apiResponse?.data.length ?? 0)) {
-      _initVideo(_apiResponse!.data[flat].skeletonUrl);
-    }
+    if (_wordGroups.isEmpty || idx >= _wordGroups.length) return;
+    _initVideo(_wordGroups[idx].frames[0].skeletonUrl);
   }
 
   Future<void> _initVideo(String url) async {
@@ -594,7 +587,7 @@ class _TranslationScreenState extends State<TranslationScreen> {
           Positioned.fill(
             child: videoReady
                 ? FittedBox(
-                    fit: BoxFit.cover,
+                    fit: BoxFit.contain,
                     child: SizedBox(
                       width: _videoController!.value.size.width,
                       height: _videoController!.value.size.height,
