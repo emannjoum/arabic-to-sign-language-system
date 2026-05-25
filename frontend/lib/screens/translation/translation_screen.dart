@@ -40,7 +40,6 @@ class _TranslationScreenState extends State<TranslationScreen> {
   bool _isLoading = false;
   ProcessResponse? _apiResponse;
   VideoPlayerController? _videoController;
-  VideoPlayerController? _nextVideoController;
   int _activeWordIndex = 0;
   List<_WordGroup> _wordGroups = [];
   Set<String> _bookmarkedWords = {};
@@ -64,7 +63,7 @@ class _TranslationScreenState extends State<TranslationScreen> {
       _buildWordGroups(_apiResponse!.data);
       if (_apiResponse!.data.isNotEmpty) {
         WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _seekToWord(0),
+          (_) => _initVideo(_apiResponse!.data.first.skeletonUrl),
         );
       }
     }
@@ -95,14 +94,14 @@ class _TranslationScreenState extends State<TranslationScreen> {
     if (_videoController == null) return;
     final v = _videoController!.value;
     if (!v.isInitialized) return;
-    
-    final finished = !v.isPlaying &&
+    final finished =
+        !v.isPlaying &&
         v.duration.inMilliseconds > 0 &&
         v.position.inMilliseconds >= v.duration.inMilliseconds - 100;
-    final stalled = !v.isPlaying &&
+    final stalled =
+        !v.isPlaying &&
         v.duration == Duration.zero &&
         v.position.inMilliseconds > 500;
-        
     if (finished || stalled) {
       _videoController!.removeListener(_videoListener);
       final nextIndex = _activeWordIndex + 1;
@@ -113,68 +112,21 @@ class _TranslationScreenState extends State<TranslationScreen> {
   }
 
   void _seekToWord(int idx) {
-    if (!mounted) return;
     setState(() => _activeWordIndex = idx);
     if (_wordGroups.isEmpty || idx >= _wordGroups.length) return;
-    _playVideoForIndex(idx);
+    _initVideo(_wordGroups[idx].frames[0].skeletonUrl);
   }
 
-  Future<void> _playVideoForIndex(int idx) async {
-    final url = _wordGroups[idx].frames[0].skeletonUrl;
-
-    // 1. Check if the next video is the one we are already pre-loading
-    if (_nextVideoController != null && _nextVideoController!.dataSource == url) {
-      
-      // If it's not finished downloading yet, just wait for it!
-      if (!_nextVideoController!.value.isInitialized) {
-        await _nextVideoController!.initialize(); 
-      }
-      
-      _videoController?.removeListener(_videoListener);
-      _videoController?.dispose();
-
-      _videoController = _nextVideoController; // Swap
-      _nextVideoController = null; 
-
-      _videoController!.addListener(_videoListener);
-      if (mounted) setState(() {});
+  Future<void> _initVideo(String url) async {
+    _videoController?.removeListener(_videoListener);
+    await _videoController?.dispose();
+    _videoController = VideoPlayerController.networkUrl(Uri.parse(url));
+    await _videoController!.initialize();
+    _videoController!.addListener(_videoListener);
+    if (mounted) {
+      setState(() {});
       _videoController!.play();
-    } 
-    // 2. Fallback: User clicked a completely different word
-    else {
-      _videoController?.removeListener(_videoListener);
-      await _videoController?.dispose();
-
-      _videoController = VideoPlayerController.networkUrl(Uri.parse(url));
-      await _videoController!.initialize();
-      _videoController!.addListener(_videoListener);
-      if (mounted) {
-        setState(() {});
-        _videoController!.play();
-      }
     }
-
-    // 3. Start pre-loading the NEXT video in the background
-    _preloadNext(idx + 1);
-  }
-
-  Future<void> _preloadNext(int nextIdx) async {
-    if (nextIdx >= _wordGroups.length) {
-      await _nextVideoController?.dispose();
-      _nextVideoController = null;
-      return;
-    }
-
-    final nextUrl = _wordGroups[nextIdx].frames[0].skeletonUrl;
-    
-    // Skip if we are already preloading this exact URL
-    if (_nextVideoController != null && _nextVideoController!.dataSource == nextUrl) {
-      return; 
-    }
-
-    await _nextVideoController?.dispose();
-    _nextVideoController = VideoPlayerController.networkUrl(Uri.parse(nextUrl));
-    await _nextVideoController!.initialize(); // Downloads silently in the background
   }
 
   Future<void> _processTranslation() async {
@@ -200,7 +152,7 @@ class _TranslationScreenState extends State<TranslationScreen> {
     });
     if (response != null && response.data.isNotEmpty) {
       _buildWordGroups(response.data);
-      _seekToWord(0);
+      _initVideo(response.data.first.skeletonUrl);
     }
   }
 
@@ -244,7 +196,6 @@ class _TranslationScreenState extends State<TranslationScreen> {
     _textController.dispose();
     _videoController?.removeListener(_videoListener);
     _videoController?.dispose();
-    _nextVideoController?.dispose();
     super.dispose();
   }
 
@@ -544,29 +495,6 @@ class _TranslationScreenState extends State<TranslationScreen> {
               }),
             ),
           ),
-          const SizedBox(width: 12),
-          GestureDetector(
-            onTap: () => _seekToWord(0),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.play_circle_outline,
-                  size: 16,
-                  color: AppColors.primary,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  'شغّل الكل',
-                  style: GoogleFonts.tajawal(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ],
-            ),
-          ),
         ],
       ),
     );
@@ -643,17 +571,9 @@ class _TranslationScreenState extends State<TranslationScreen> {
                       child: VideoPlayer(_videoController!),
                     ),
                   )
-                : (groups.isEmpty
-                    // Show stick figure ONLY if no translation exists yet
-                    ? CustomPaint(
-                        painter: _SignPosePainter(poseIndex: _activeWordIndex % 6),
-                      )
-                    // Show a clean spinner during buffering gaps between letters
-                    : const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.primarySoft,
-                        ),
-                      )),
+                : CustomPaint(
+                    painter: _SignPosePainter(poseIndex: _activeWordIndex % 6),
+                  ),
           ),
           Positioned(
             top: 14,
@@ -702,8 +622,6 @@ class _TranslationScreenState extends State<TranslationScreen> {
                       ? () => _toggleBookmark(active.label)
                       : null,
                 ),
-                const SizedBox(width: 6),
-                const _GlassBtn(icon: Icons.fullscreen),
               ],
             ),
           ),
@@ -806,25 +724,7 @@ class _TranslationScreenState extends State<TranslationScreen> {
                               ),
                             ),
                       const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: const Text(
-                          '1x',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
+
                       GestureDetector(
                         onTap: _replay,
                         child: const Icon(
@@ -937,14 +837,6 @@ class _TranslationScreenState extends State<TranslationScreen> {
                 fontSize: 14,
                 fontWeight: FontWeight.w800,
                 color: AppColors.ink,
-              ),
-            ),
-            Text(
-              'المدة الكلية: $_totalDuration',
-              style: GoogleFonts.tajawal(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: AppColors.mute,
               ),
             ),
           ],
