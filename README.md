@@ -63,12 +63,12 @@ Instead of utilizing generic sequence-to-sequence generation models, Signly hand
 
 ```mermaid
 graph TD
-    In[Input Tokens: أنا, المدرسة, إلى, ذهبت] -->|After NLP Utilities mapping| Embed[Embedding Layer: paraphrase-multilingual-MiniLM-L12-v2]
+    In[Input Tokens: كم، هذه, الدراجة, ؟] -->|After NLP Utilities mapping| Embed[Embedding Layer: paraphrase-multilingual-MiniLM-L12-v2]
     Embed --> Enc[Bidirectional LSTM Encoder]
     Enc -->|Hidden States Matrix| Dec[Monodirectional LSTM Decoder]
     Dec -->|Attention Content Mask| Soft[Softmax over Sequence Index]
     Soft -->|Predicted Pointers| Pointers[Idx 0, Idx 3, Idx 1]
-    Pointers --> Out[Final JSL Sequence: أنا, ذهبت, المدرسة]
+    Pointers --> Out[Final JSL Sequence: ؟, هذه, الدراجة, كم]
 ```
 
 #### Architecture Mechanics
@@ -81,7 +81,7 @@ graph TD
 * **Loss Profile Optimization:** Modeled over Cross-Entropy metrics using L2 Weight Decay (1e-4) and explicit Dropout (0.3) layers. Includes an early stopping patience mechanism (10 epochs) tracking generalized validation losses to prevent overfitting.
 * **Rigorous Statistical Validation:** Performance outputs on unseen test sets are reported along with 95% Bootstrap Confidence Intervals across standard metrics:
     * **Sequence-level accuracy:** Exact Match (EM) percentage, Word Error Rate (WER), and Position Error Rate (PER).
-    * **Translation metrics:** BLEU-4 and ROUGE-L.
+    * **Translation metrics:** BLEU-4.
     * **Rank Correlation:** Kendall's Tau, measuring the exact ordering alignment relative to true regional sign syntax.
 
 ---
@@ -93,8 +93,8 @@ When the structural reordering pipeline outputs token permutations that do not h
 graph TD
     Start[ArSL Lemma Output Token] --> Match{Exact DB Match?}
     Match -->|Yes| Fetch[Fetch Associated MediaPipe Skeletons]
-    Match -->|No| Vector[Generate 384-d Vector via MiniLM]
-    Vector --> FAISS[FAISS Index Search inside Cached Dictionary]
+    Match -->|No| Vector[Generate 384-d Vector via Silma-Embeddings]
+    Vector --> FAISS[FAISS Index Search inside Dictionary]
     FAISS --> Thresh{Similarity > Threshold τ?}
     Thresh -->|Yes| Syn[Retrieve Closest Approximate Sign]
     Thresh -->|No| Split[Split Token Into Characters]
@@ -123,7 +123,7 @@ The expected outcome is a functional text-to-sign language application that acce
 * **Frontend:** Flutter (cross-platform app with animated skeletons)  
 * **Backend:** FastAPI (Python 3.10)  
 * **Database & Vector Index:** Supabase (PostgreSQL) + In-Memory FAISS  
-* **NLP & Deep Learning Models:** Fine-tuned CAMeLBERT (Intent / NER), PointerNet (Custom PyTorch LSTM Architecture), Fine-tuned AraT5v2, GPT-4o-mini, and `paraphrase-multilingual-MiniLM-L12-v2`
+* **NLP & Deep Learning Models:** CAMeL Tools, Fine-tuned CAMeLBERT (Intent), PointerNet (Custom PyTorch LSTM Architecture), GPT-4o-mini, Silma (Semantic Embeddings), and `paraphrase-multilingual-MiniLM-L12-v2` (PointerNet Embeddings)
 * **Auth:** JWT-based authentication  
 
 ---
