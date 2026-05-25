@@ -161,7 +161,7 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                                   crossAxisCount: cols,
                                   crossAxisSpacing: 18,
                                   mainAxisSpacing: 18,
-                                  childAspectRatio: 1.4,
+                                  childAspectRatio: 0.95,
                                 ),
                             itemCount: _bookmarks.length,
                             itemBuilder: (context, index) {
@@ -268,7 +268,7 @@ class _BookmarkCard extends StatelessWidget {
                 top: Radius.circular(14),
               ),
               child: SizedBox(
-                height: 150,
+                height: 110,
                 child: CustomPaint(
                   painter: _SignPosePainter(poseIndex: poseIndex),
                 ),
