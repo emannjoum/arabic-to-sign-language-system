@@ -40,6 +40,7 @@ class _TranslationScreenState extends State<TranslationScreen> {
   bool _isLoading = false;
   ProcessResponse? _apiResponse;
   VideoPlayerController? _videoController;
+  VideoPlayerController? _nextVideoController;
   int _activeWordIndex = 0;
   List<_WordGroup> _wordGroups = [];
   Set<String> _bookmarkedWords = {};
@@ -62,9 +63,7 @@ class _TranslationScreenState extends State<TranslationScreen> {
       _apiResponse = widget.initialResponse;
       _buildWordGroups(_apiResponse!.data);
       if (_apiResponse!.data.isNotEmpty) {
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _initVideo(_apiResponse!.data.first.skeletonUrl),
-        );
+        WidgetsBinding.instance.addPostFrameCallback((_) => _seekToWord(0));
       }
     }
   }
@@ -94,6 +93,7 @@ class _TranslationScreenState extends State<TranslationScreen> {
     if (_videoController == null) return;
     final v = _videoController!.value;
     if (!v.isInitialized) return;
+
     final finished =
         !v.isPlaying &&
         v.duration.inMilliseconds > 0 &&
@@ -102,6 +102,7 @@ class _TranslationScreenState extends State<TranslationScreen> {
         !v.isPlaying &&
         v.duration == Duration.zero &&
         v.position.inMilliseconds > 500;
+
     if (finished || stalled) {
       _videoController!.removeListener(_videoListener);
       final nextIndex = _activeWordIndex + 1;
@@ -112,21 +113,70 @@ class _TranslationScreenState extends State<TranslationScreen> {
   }
 
   void _seekToWord(int idx) {
+    if (!mounted) return;
     setState(() => _activeWordIndex = idx);
     if (_wordGroups.isEmpty || idx >= _wordGroups.length) return;
-    _initVideo(_wordGroups[idx].frames[0].skeletonUrl);
+    _playVideoForIndex(idx);
   }
 
-  Future<void> _initVideo(String url) async {
-    _videoController?.removeListener(_videoListener);
-    await _videoController?.dispose();
-    _videoController = VideoPlayerController.networkUrl(Uri.parse(url));
-    await _videoController!.initialize();
-    _videoController!.addListener(_videoListener);
-    if (mounted) {
-      setState(() {});
+  Future<void> _playVideoForIndex(int idx) async {
+    final url = _wordGroups[idx].frames[0].skeletonUrl;
+
+    // 1. Check if the next video is the one we are already pre-loading
+    if (_nextVideoController != null &&
+        _nextVideoController!.dataSource == url) {
+      // If it's not finished downloading yet, just wait for it!
+      if (!_nextVideoController!.value.isInitialized) {
+        await _nextVideoController!.initialize();
+      }
+
+      _videoController?.removeListener(_videoListener);
+      _videoController?.dispose();
+
+      _videoController = _nextVideoController; // Swap
+      _nextVideoController = null;
+
+      _videoController!.addListener(_videoListener);
+      if (mounted) setState(() {});
       _videoController!.play();
     }
+    // 2. Fallback: User clicked a completely different word
+    else {
+      _videoController?.removeListener(_videoListener);
+      await _videoController?.dispose();
+
+      _videoController = VideoPlayerController.networkUrl(Uri.parse(url));
+      await _videoController!.initialize();
+      _videoController!.addListener(_videoListener);
+      if (mounted) {
+        setState(() {});
+        _videoController!.play();
+      }
+    }
+
+    // 3. Start pre-loading the NEXT video in the background
+    _preloadNext(idx + 1);
+  }
+
+  Future<void> _preloadNext(int nextIdx) async {
+    if (nextIdx >= _wordGroups.length) {
+      await _nextVideoController?.dispose();
+      _nextVideoController = null;
+      return;
+    }
+
+    final nextUrl = _wordGroups[nextIdx].frames[0].skeletonUrl;
+
+    // Skip if we are already preloading this exact URL
+    if (_nextVideoController != null &&
+        _nextVideoController!.dataSource == nextUrl) {
+      return;
+    }
+
+    await _nextVideoController?.dispose();
+    _nextVideoController = VideoPlayerController.networkUrl(Uri.parse(nextUrl));
+    await _nextVideoController!
+        .initialize(); // Downloads silently in the background
   }
 
   Future<void> _processTranslation() async {
@@ -152,7 +202,7 @@ class _TranslationScreenState extends State<TranslationScreen> {
     });
     if (response != null && response.data.isNotEmpty) {
       _buildWordGroups(response.data);
-      _initVideo(response.data.first.skeletonUrl);
+      _seekToWord(0);
     }
   }
 
@@ -196,6 +246,7 @@ class _TranslationScreenState extends State<TranslationScreen> {
     _textController.dispose();
     _videoController?.removeListener(_videoListener);
     _videoController?.dispose();
+    _nextVideoController?.dispose();
     super.dispose();
   }
 
@@ -495,6 +546,7 @@ class _TranslationScreenState extends State<TranslationScreen> {
               }),
             ),
           ),
+          const SizedBox(width: 12),
         ],
       ),
     );
@@ -571,9 +623,19 @@ class _TranslationScreenState extends State<TranslationScreen> {
                       child: VideoPlayer(_videoController!),
                     ),
                   )
-                : CustomPaint(
-                    painter: _SignPosePainter(poseIndex: _activeWordIndex % 6),
-                  ),
+                : (groups.isEmpty
+                      // Show stick figure ONLY if no translation exists yet
+                      ? CustomPaint(
+                          painter: _SignPosePainter(
+                            poseIndex: _activeWordIndex % 6,
+                          ),
+                        )
+                      // Show a clean spinner during buffering gaps between letters
+                      : const Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.primarySoft,
+                          ),
+                        )),
           ),
           Positioned(
             top: 14,
