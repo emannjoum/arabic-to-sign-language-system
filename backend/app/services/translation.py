@@ -80,13 +80,31 @@ def process_translation(user_input: str, db: Session):
     print(f"Lemmas after CAMeL: {lemmas_list}")
 
     # Syntax Reordering (Pointer Network)
-    if len(lemmas_list) > 2:
-        lemmas_string = " ".join(lemmas_list) # Reorder model expects a string
+    has_question_mark = False
+    clean_lemmas = []
+    for w in lemmas_list:
+        if w in ["؟", "؟_"]: has_question_mark = True
+        else: clean_lemmas.append(w)
+
+    if len(clean_lemmas) > 2:
+        lemmas_string = " ".join(clean_lemmas) 
         reordered_words = local_pointer_reorder(lemmas_string)
         print(f"Reordered: {lemmas_string} -> {reordered_words}")
     else:
         print(f"Short sentence — skipping reorder.")
-        reordered_words = lemmas_list
+        reordered_words = clean_lemmas
+    
+    reordered_words = [w for w in reordered_words if w.strip()]
+    if has_question_mark: reordered_words.insert(0, "؟")
+
+    '''if len(lemmas_list) > 2:
+        lemmas_string = " ".join(lemmas_list) # Reorder model expects a string
+        lemmas_string = lemmas_string.replace("؟_", "؟")
+        reordered_words = local_pointer_reorder(lemmas_string)
+        print(f"Reordered: {lemmas_string} -> {reordered_words}")
+    else:
+        print(f"Short sentence — skipping reorder.")
+        reordered_words = [w.replace("؟_", "؟") for w in lemmas_list]'''
 
     # 3. Unmasking: Inject the numbers back into the reordered sentence
     final_sequence = []

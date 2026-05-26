@@ -32,7 +32,7 @@ except Exception as e:
 
 ner_pipeline = pipeline("ner", model="CAMeL-Lab/bert-base-arabic-camelbert-mix-ner", aggregation_strategy="simple")
 
-QUESTION_WORDS = {"من", "ماذا", "أين", "اين", "متى", "كيف", "لماذا", "كم", "أي", "هل"}
+QUESTION_WORDS = {"مين", "ماذا", "وين", "اين", "متى", "كيف", "لماذا", "كم", "أي", "هل","ليش","لويش","ليه","ايش","شو","لويه"}
 NEG_WORDS = {"لا", "لم", "لن", "ليس", "ما", "أبدًا", "ابدا"}
 STOP_WORDS = {"يا","و", "ف", "ثم", "ان", "أن"}
 CONDITIONAL_WORDS = {"اذا", "لو", "لولا", "كلما", "إن", "ان", "كيفما", "اينما"}
@@ -105,7 +105,7 @@ def transform_to_arsl(sentence: str) -> list[str]:
         if pos in ['prep', 'conj', 'abbrev']: continue
 
         if token in QUESTION_WORDS:
-            question_word = "سبب" if token == "لماذا" else token
+            question_word = "سبب" if token == "لماذا" or token == "ليش" or token == "لويش" else token
             continue
         
         if pos == 'pron_rel': continue

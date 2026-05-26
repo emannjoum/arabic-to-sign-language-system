@@ -299,8 +299,20 @@ class SemanticEngine:
 
         if not valid_sequence:
             return None
+        
+        best_match = valid_sequence[0]
+        best_score = float(similarities[ranked_indices[0]])
+        
+        print(f"[Log - Wiki Fallback] Selected best single match: '{best_match}' with score {best_score:.4f}")
+        
+        return {
+            "type": "match", 
+            "word": best_match, 
+            "score": best_score, 
+            "source": "wiki_fallback_single"
+        }
 
-        # If there's only one valid match, return standard match
+        ''' # If there's only one valid match, return standard match
         if len(valid_sequence) == 1:
             return {
                 "type": "match", 
@@ -315,7 +327,7 @@ class SemanticEngine:
                 "words": valid_sequence[:2], 
                 "score": float(similarities[ranked_indices[0]]), 
                 "source": "wiki_compound"
-            }
+            }'''
     
     def mean_pool(self, last_hidden_state, attention_mask):
         mask = attention_mask.unsqueeze(-1).float()
