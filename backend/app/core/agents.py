@@ -96,17 +96,17 @@ def run_translation_analyzer(text: str) -> TranslationAnalysisResult:
 
     --- TASK 1: CONTENT EXTRACTION & Number Formatting ---
     EXTRACT the specific content the user wants processed or translated, adhering to these rules:
-    1. Remove polite phrases ("please", "لو سمحت"), command words ("translate", "ترجم", "كيف احكي"), and punctuation.
+    1. Remove polite phrases ("please", "لو سمحت"), command words ("translate", "ترجم", "كيف احكي").
     2. If the text contains 'من' acting as a Question Word/Relative Pronoun meaning 'Who', replace it with 'مين'. If it means 'From', leave it as 'من'.
     3. NUMBERS CONVERSION: Convert all Eastern Arabic numerals (٠١٢٣٤٥٦٧٨٩) to Western/English numerals (0123456789).
     4. NUMBERS SPACING (CRITICAL): 
        - QUANTITIES (years, prices, counts, amounts): Keep them as one block (e.g., "سعرها 25000", "عام 1970").
-       - IDENTIFIERS (phone numbers, national IDs, passwords, building/room numbers): Insert a single space between EVERY digit so they are spelled out one by one (e.g., "رقم هاتفي 9627912" becomes "رقم هاتفي 9 6 2 7 9 1 2").
+       - IDENTIFIERS (phone numbers, national IDs, passwords): Insert a single space between EVERY digit so they are spelled out one by one (e.g., "رقم هاتفي 9627912" becomes "رقم هاتفي 9 6 2 7 9 1 2").
     5. DETACH OCNJUNCTION: If the conjunction 'و' (and) is attached to a word, separate it with a space.
         Example: "أحمد ومحمد" -> "أحمد و محمد".
-        Example: "فذهبنا" -> "ف ذهبنا".
         Do not split words where 'و' is part of the root word (e.g., keep "ورقة" as "ورقة").
-
+    6. QUESTION HANDLING: If the extracted text is interrogative (e.g., contains words like هل, كيف, متى, أين, لماذا, مين, كم, شو, ايش), ensure it ends with an Arabic question mark preceded by a single space (" ؟").
+        If the user didn't include one, append it with a space. If they included one without a space, separate it.
     --- TASK 2: NAME EXTRACTION ---
     Your role is to detect PERSON NAMES ONLY from the original text.
     - Extract ONLY human person names (first names, last names, or full names).
@@ -159,6 +159,9 @@ def run_translation_analyzer(text: str) -> TranslationAnalysisResult:
     
     User: "ترجم جملة السلام عليكم يا احمد"
     Output: {"extracted_text": "السلام عليكم يا احمد", "names": ["احمد"]}
+
+    User: "كيف اروح على الجامعة"
+    Output: {"extracted_text": "كيف اروح على الجامعة ؟", "names": []}
     """
     try:
         data = call_llm_for_json(system_prompt, f"User message: {text}")

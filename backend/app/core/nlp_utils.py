@@ -80,7 +80,7 @@ def transform_to_arsl(sentence: str) -> list[str]:
     arsl_sequence = []
     question_word = None
     negation_word = None
-    # has_q_mark = "؟" in sentence or "?" in sentence
+    #has_q_mark = "؟" in sentence or "?" in sentence
 
     for i, result in enumerate(disambig_results):
         token = tokens[i]
@@ -143,6 +143,6 @@ def transform_to_arsl(sentence: str) -> list[str]:
 
     if negation_word: arsl_sequence.append("لا")
     if question_word:arsl_sequence.append(question_word)
-    # if has_q_mark or question_word: arsl_sequence.insert(0, "؟")
+    #if has_q_mark or question_word: arsl_sequence.insert(0, "؟")
  
     return arsl_sequence

@@ -5,12 +5,21 @@ from app.db.models import Sign
 from app.schemas import SkeletonFrame
 
 def process_teaching(user_text: str, db: Session):
-    topic_result = run_topic_agent(user_text)
-    topic_string = topic_result.topic
-    if not topic_string: topic_string = "متفرقات"
-    print(f"Extracted Topic: {topic_string}")
-    signs = db.query(Sign).filter(Sign.topic.ilike(f"%{topic_string}%")).all()
+    print(f"Processing Teaching Request for: '{user_text}'")
+    exact_topic = db.query(Sign.topic).filter(Sign.topic == user_text).first()
 
+    if exact_topic:
+        topic_string = user_text
+        print(f"'{topic_string}' matches a DB topic perfectly.")
+        
+    else:        
+        agent_result = run_topic_agent(user_text)
+        topic_string = agent_result.topic
+        
+        if not topic_string: topic_string = "متفرقات"
+        print(f"Extracted Topic: {topic_string}")
+    
+    signs = db.query(Sign).filter(Sign.topic.ilike(f"%{topic_string}%")).all()
     response_data = []
     for sign in signs:
         response_data.append(SkeletonFrame(
