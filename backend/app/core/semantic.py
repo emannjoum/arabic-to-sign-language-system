@@ -268,7 +268,7 @@ class SemanticEngine:
         candidate_db_words = []
         for score_list, idx_list in zip(D, I):
             score = float(score_list[0])
-            if score >= 0.70: 
+            if score >= 0.69: 
                 db_word = self.faiss_targets[idx_list[0]]
                 if db_word not in candidate_db_words:
                     candidate_db_words.append(db_word)
@@ -290,44 +290,60 @@ class SemanticEngine:
         
         ranked_indices = np.argsort(similarities)[::-1]
         
-        # Compound Synthesizer
-        valid_sequence = []
+        valid_words = []
         for idx in ranked_indices:
             score = float(similarities[idx])
-            if score > 0.25:
-                valid_sequence.append(candidate_db_words[idx])
+            if score > 0.25: valid_words.append(candidate_db_words[idx])
 
-        if not valid_sequence:
-            return None
-        
-        best_match = valid_sequence[0]
-        best_score = float(similarities[ranked_indices[0]])
-        
-        print(f"[Log - Wiki Fallback] Selected best single match: '{best_match}' with score {best_score:.4f}")
-        
-        return {
-            "type": "match", 
-            "word": best_match, 
-            "score": best_score, 
-            "source": "wiki_fallback_single"
-        }
+        if not valid_words:return None
 
-        ''' # If there's only one valid match, return standard match
-        if len(valid_sequence) == 1:
+        if len(valid_words) == 1:
             return {
                 "type": "match", 
-                "word": valid_sequence[0], 
+                "word": valid_words[0], 
                 "score": float(similarities[ranked_indices[0]]), 
                 "source": "wiki_fallback"
             }
-        # If there are multiple valid concepts, return them as a synthesized compound sequence
+            
         else:
-            return {
-                "type": "explain", 
-                "words": valid_sequence[:2], 
-                "score": float(similarities[ranked_indices[0]]), 
-                "source": "wiki_compound"
-            }'''
+            # We have multiple valid words. Let's test their COHESION mathematically.
+            top_two_words = valid_words[:2]
+            best_single_word = top_two_words[0]
+            best_single_score = float(similarities[ranked_indices[0]])
+            
+            combined_phrase = " ".join(top_two_words)
+            phrase_vec = self.embed_texts([combined_phrase])
+            cohesion_score = float(np.dot(phrase_vec, query_embedding.T).flatten()[0])
+            
+            print(f"[Log - Cohesion] Best Single: '{best_single_word}' ({best_single_score:.4f}). Combined: '{combined_phrase}' ({cohesion_score:.4f})")
+
+            # RULE 1: The Dilution Penalty
+            # If combining the words drops the score by more than 5% (0.05), the second word is garbage.
+            if cohesion_score < (best_single_score - 0.05):
+                print(f"[Log - Cohesion] The word '{top_two_words[1]}' diluted the meaning. Rejecting compound.")
+                return {
+                    "type": "match", 
+                    "word": best_single_word, 
+                    "score": best_single_score, 
+                    "source": "wiki_fallback_single"
+                }
+
+            # RULE 2: The Baseline Check
+            # If it survived dilution, ensure it meets a safe, low baseline to filter out total junk.
+            if cohesion_score >= 0.32:
+                return {
+                    "type": "explain", 
+                    "words": top_two_words, 
+                    "score": cohesion_score, 
+                    "source": "wiki_compound"
+                }
+            else:
+                return {
+                    "type": "match", 
+                    "word": best_single_word, 
+                    "score": best_single_score, 
+                    "source": "wiki_fallback_single"
+                }
     
     def mean_pool(self, last_hidden_state, attention_mask):
         mask = attention_mask.unsqueeze(-1).float()
@@ -346,7 +362,7 @@ class SemanticEngine:
         self.index = faiss.IndexFlatIP(emb.shape[1])
         self.index.add(emb)
 
-    def search(self, query_word: str, top_k=5, sim_threshold=0.70):
+    def search(self, query_word: str, top_k=5, sim_threshold=0.69):
         q = query_word.strip()
 
         print(f"\nProcessing Query: '{q}'")
