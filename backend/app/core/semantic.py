@@ -19,6 +19,7 @@ from app.db.database import SessionLocal, Base
 from sqlalchemy import Column, Integer, String
 from sqlalchemy.dialects.postgresql import ARRAY 
 from app.db.models import Sign
+from app.core.agents import run_compound_verifier_agent
 
 EMBED_MODEL = "silma-ai/silma-embedding-sts-v0.1"
 BOT_USER_AGENT = "SignlySemanticEng/1.0 (https://github.com/signly/signly; signly4@gmail.com)"
@@ -306,44 +307,54 @@ class SemanticEngine:
             }
             
         else:
-            # We have multiple valid words. Let's test their COHESION mathematically.
             top_two_words = valid_words[:2]
-            best_single_word = top_two_words[0]
-            best_single_score = float(similarities[ranked_indices[0]])
+
+            word_scores = {
+                top_two_words[0]: float(similarities[ranked_indices[0]]),
+                top_two_words[1]: float(similarities[ranked_indices[1]])
+            }
             
             combined_phrase = " ".join(top_two_words)
             phrase_vec = self.embed_texts([combined_phrase])
             cohesion_score = float(np.dot(phrase_vec, query_embedding.T).flatten()[0])
             
-            print(f"[Log - Cohesion] Best Single: '{best_single_word}' ({best_single_score:.4f}). Combined: '{combined_phrase}' ({cohesion_score:.4f})")
+            print(f"[Log - Cohesion] Top Words: {top_two_words}. Combined Score: {cohesion_score:.4f}")
 
-            # RULE 1: The Dilution Penalty
-            # If combining the words drops the score by more than 5% (0.05), the second word is garbage.
-            if cohesion_score < (best_single_score - 0.05):
-                print(f"[Log - Cohesion] The word '{top_two_words[1]}' diluted the meaning. Rejecting compound.")
-                return {
-                    "type": "match", 
-                    "word": best_single_word, 
-                    "score": best_single_score, 
-                    "source": "wiki_fallback_single"
-                }
-
-            # RULE 2: The Baseline Check
-            # If it survived dilution, ensure it meets a safe, low baseline to filter out total junk.
-            if cohesion_score >= 0.32:
+            llm_decision = self._verify_compound_with_llm(query, top_two_words[0], top_two_words[1])
+            is_valid_compound = llm_decision.get("is_valid", False)
+            
+            best_single_word = llm_decision.get("best_fallback", top_two_words[0])
+            
+            if best_single_word not in word_scores: best_single_word = top_two_words[0]
+                
+            best_single_score = word_scores[best_single_word]
+            
+            if is_valid_compound:
+                print(f"[Log - AI Verification] LLM approved '{combined_phrase}'.")
                 return {
                     "type": "explain", 
                     "words": top_two_words, 
                     "score": cohesion_score, 
-                    "source": "wiki_compound"
+                    "source": "wiki_compound_ai_verified"
                 }
             else:
+                print(f"[Log - AI Verification] LLM rejected '{combined_phrase}'. LLM chose '{best_single_word}' as the safest single fallback.")
+
+            if cohesion_score < (best_single_score - 0.05):
+                print(f"[Log - Cohesion] Dilution penalty triggered. Returning '{best_single_word}'.")
                 return {
                     "type": "match", 
                     "word": best_single_word, 
                     "score": best_single_score, 
                     "source": "wiki_fallback_single"
                 }
+
+            return {
+                "type": "match", 
+                "word": best_single_word, 
+                "score": best_single_score, 
+                "source": "wiki_fallback_single"
+            }
     
     def mean_pool(self, last_hidden_state, attention_mask):
         mask = attention_mask.unsqueeze(-1).float()
@@ -402,6 +413,9 @@ class SemanticEngine:
         # 4. Fingerspelling
         print(f"[Log - Terminal Fallback] All semantic and dictionary logic exhausted. Defaulting to fingerspelling for '{q}'.")
         return None #{"type": "spell", "word": q}
+    
+    def _verify_compound_with_llm(self, target_word: str, word1: str, word2: str) -> dict:
+        return run_compound_verifier_agent(target_word, word1, word2)
     
 
 semantic_engine = SemanticEngine()

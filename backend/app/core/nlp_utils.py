@@ -44,7 +44,6 @@ def normalize_text(s: str) -> str:
     return s
 
 
-# Load signs + keywords from DB at startup 
 def load_signs_set():
     db = SessionLocal()
     try:
@@ -60,7 +59,8 @@ def load_signs_set():
         return result
     finally:
         db.close()
-#*************************************************
+
+
 SIGNS_SET = load_signs_set()
 print(f"Loaded {len(SIGNS_SET)} signs into N-gram set.")
 
@@ -80,7 +80,6 @@ def transform_to_arsl(sentence: str) -> list[str]:
     arsl_sequence = []
     question_word = None
     negation_word = None
-    #has_q_mark = "؟" in sentence or "?" in sentence
 
     for i, result in enumerate(disambig_results):
         token = tokens[i]
@@ -93,7 +92,6 @@ def transform_to_arsl(sentence: str) -> list[str]:
             arsl_sequence.append(tokens[i])
             continue
             
-        # Get the best analysis
         analysis = result.analyses[0].analysis
         
         # 'analysis' is already a dictionary in modern Camel Tools
@@ -114,7 +112,9 @@ def transform_to_arsl(sentence: str) -> list[str]:
             negation_word = "لا" 
             continue
  
-        if analysis.get('gen') == 'f' and analysis.get('rat') == 'y': arsl_sequence.append("بنت")
+        if analysis.get('gen') == 'f' and analysis.get('rat') == 'y':
+            arsl_sequence.append("بنت")
+
         if analysis.get('num') == 'd' and "اثنان" not in arsl_sequence:
             arsl_sequence.append("اثنان")
         elif analysis.get('num') == 'p' and "كثير" not in arsl_sequence:
@@ -143,6 +143,5 @@ def transform_to_arsl(sentence: str) -> list[str]:
 
     if negation_word: arsl_sequence.append("لا")
     if question_word:arsl_sequence.append(question_word)
-    #if has_q_mark or question_word: arsl_sequence.insert(0, "؟")
  
     return arsl_sequence

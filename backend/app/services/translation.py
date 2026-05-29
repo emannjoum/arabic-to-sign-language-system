@@ -97,16 +97,7 @@ def process_translation(user_input: str, db: Session):
     reordered_words = [w for w in reordered_words if w.strip()]
     if has_question_mark: reordered_words.insert(0, "؟")
 
-    '''if len(lemmas_list) > 2:
-        lemmas_string = " ".join(lemmas_list) # Reorder model expects a string
-        lemmas_string = lemmas_string.replace("؟_", "؟")
-        reordered_words = local_pointer_reorder(lemmas_string)
-        print(f"Reordered: {lemmas_string} -> {reordered_words}")
-    else:
-        print(f"Short sentence — skipping reorder.")
-        reordered_words = [w.replace("؟_", "؟") for w in lemmas_list]'''
-
-    # 3. Unmasking: Inject the numbers back into the reordered sentence
+    # Unmasking: Inject the numbers back into the reordered sentence
     final_sequence = []
     for word in reordered_words:
         # If the word is one of our placeholders, expand it

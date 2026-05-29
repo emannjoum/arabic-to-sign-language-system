@@ -3,7 +3,7 @@ import json
 from openai import OpenAI
 from dotenv import load_dotenv
 from fastapi import HTTPException
-from app.schemas import RouterResult, IntentResult, TopicResult, VocabResult
+from app.schemas import RouterResult, TopicResult
 import torch
 import torch.nn.functional as F
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
@@ -168,3 +168,38 @@ def run_translation_analyzer(text: str) -> TranslationAnalysisResult:
         return TranslationAnalysisResult(**data)
     except Exception:
         return TranslationAnalysisResult(extracted_text=text, names=[])
+    
+
+def run_compound_verifier_agent(target_word: str, word1: str, word2: str) -> dict:
+    system_prompt = """
+    You are an EXTREMELY STRICT Arabic Sign Language (ArSL) linguistics expert. 
+    TASK 1: Determine if combining the two provided words is ABSOLUTELY NECESSARY and ACCURATELY conveys the visual meaning of the Target Word ("is_valid").
+    
+    CRITICAL RULES FOR REJECTION ("is_valid": false):
+    1. ArSL is concise! If one word alone (like "العالم") captures the core meaning of the target (like "عالمي" or "عالمية"), the second word is redundant garbage. Reject the compound.
+    2. Do NOT approve metaphorical, philosophical, or loosely related concepts. "World Culture" (العالم ثقافة) is NOT a valid direct translation for "Global" (عالمي). Reject it.
+    
+    TASK 2: Choose the most core/central noun ("best_fallback") from the two words to represent the Target. You MUST choose one.
+
+    Examples:
+    - Target: لبؤة | Words: بنت, اسد -> {"is_valid": true, "best_fallback": "اسد"}
+    - Target: شبل | Words: ولد, اسد -> {"is_valid": true, "best_fallback": "اسد"}
+    - Target: عالمي | Words: العالم, ثقافة -> {"is_valid": false, "best_fallback": "العالم"}
+    - Target: عالمية | Words: العالم, ثقافة -> {"is_valid": false, "best_fallback": "العالم"}
+    - Target: مباشرة | Words: صغير, شارع -> {"is_valid": false, "best_fallback": "صغير"}
+    
+    Return ONLY a JSON object:
+    {
+        "is_valid": true/false,
+        "best_fallback": "<one of the two words>"
+    }
+    """
+    
+    user_message = f"Target: {target_word} | Words: {word1}, {word2}"
+    
+    try:
+        # Pass temperature=0.0 to completely kill the model's "creativity"
+        return call_llm_for_json(system_prompt, user_message, temperature=0.0)
+    except Exception as e:
+        print(f"[Log - Compound Verifier AI Error] {e}")
+        return {"is_valid": False, "best_fallback": word1}
