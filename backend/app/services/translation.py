@@ -69,36 +69,27 @@ def process_translation(user_input: str, db: Session):
             clean_text = clean_text.replace(compound, protected_compound)
 
     # Protect Exact Single-Word DB Matches
-    text_words = clean_text.split()
+    """text_words = clean_text.split()
     filtered_words = []
     for w in text_words:
         if w in ARABIC_PREPOSITIONS: continue  
         if w in current_signs_set and "_" not in w: w = w + "_" 
         filtered_words.append(w)
     
-    clean_text = " ".join(filtered_words)
+    clean_text = " ".join(filtered_words)"""
 
     # Lemmatization (CAMeL Tools)
     lemmas_list = transform_to_arsl(clean_text)
     print(f"Lemmas after CAMeL: {lemmas_list}")
 
     # Syntax Reordering (Pointer Network)
-    has_question_mark = False
-    clean_lemmas = []
-    for w in lemmas_list:
-        if w in ["؟", "؟_"]: has_question_mark = True
-        else: clean_lemmas.append(w.rstrip("_"))
+    clean_lemmas = [w.rstrip("_") for w in lemmas_list if w.strip()]
 
-    if len(clean_lemmas) > 2:
-        lemmas_string = " ".join(clean_lemmas) 
-        reordered_words = local_pointer_reorder(lemmas_string)
-        print(f"Reordered: {lemmas_string} -> {reordered_words}")
-    else:
-        print(f"Short sentence — skipping reorder.")
-        reordered_words = clean_lemmas
+    lemmas_string = " ".join(clean_lemmas) 
+    reordered_words = local_pointer_reorder(lemmas_string)
+    print(f"Reordered: {lemmas_string} -> {reordered_words}")
     
     reordered_words = [w for w in reordered_words if w.strip()]
-    if has_question_mark: reordered_words.insert(0, "؟")
 
     # Unmasking: Inject the numbers back into the reordered sentence
     final_sequence = []

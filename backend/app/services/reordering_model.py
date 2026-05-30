@@ -63,7 +63,7 @@ FILENAME = "transformer_ptr_msa.pth"
 MAX_LEN = 20
 
 Q_MARKS = ['?', '؟']
-Q_WORDS = ['كيف', 'متى', 'أين', 'لماذا', 'من', 'ماذا', 'هل', 'كم', 'شلون', 'وين', 'ليش', 'مين', 'شو', 'ايمتى', 'قديش'] 
+Q_WORDS = ['كيف', 'متى', 'اين', 'لماذا', 'من', 'ماذا', 'هل', 'كم', 'شلون', 'وين', 'ليش', 'مين', 'شو', 'ايمتى', 'قديش'] 
 
 try:
     model_path = hf_hub_download(repo_id=REPO_ID, filename=FILENAME)
@@ -82,31 +82,21 @@ except Exception as e:
 
 
 def local_pointer_reorder(sentence: str) -> list[str]:
-    particles = ["قبل","اثنان","كثير","في","و","على","من","إلى","عن","ثم"]
     words = sentence.split()
-    glued, i = [], 0
-    while i < len(words):
-        if words[i] in particles and i + 1 < len(words):
-            glued.append(f"{words[i]}~{words[i+1]}")
-            i += 2
-        else:
-            glued.append(words[i])
-            i += 1
-
-    clean_glued = [w.replace("؟", "") for w in glued]
     
-    clean_glued = clean_glued[:MAX_LEN]
-    n = len(clean_glued)
-    if n == 0: return []
+    words = words[:MAX_LEN]
+    n = len(words)
+    
+    if n == 0: 
+        return []
 
     with torch.no_grad():
-        embeddings = EMBED_MODEL.encode(clean_glued)
+        embeddings = EMBED_MODEL.encode(words)
         features = np.zeros((n, 2))
         
-        for j, w in enumerate(clean_glued):
-            w_split = w.split("~") 
-            if any(part in Q_MARKS for part in w_split): features[j, 0] = 1.0
-            if any(part in Q_WORDS for part in w_split): features[j, 1] = 1.0
+        for j, w in enumerate(words):
+            if w in Q_MARKS: features[j, 0] = 1.0
+            if w in Q_WORDS: features[j, 1] = 1.0
             
         combined_emb = np.concatenate([embeddings, features], axis=1)
         
@@ -115,7 +105,7 @@ def local_pointer_reorder(sentence: str) -> list[str]:
         
         logits = reorder_model(padded_x)[0]
         
-        # ptr extraction
+        # Ptr extraction with masking (only looking at the valid 'n' length)
         indices, mask = [], torch.zeros(n).to(DEVICE)
         for step in range(n):
             step_logits = logits[step, :n] + mask
@@ -123,13 +113,6 @@ def local_pointer_reorder(sentence: str) -> list[str]:
             indices.append(idx)
             mask[idx] = -1e9
             
-        reordered = [clean_glued[idx] for idx in indices]
+        reordered = [words[idx] for idx in indices]
 
-    result = []
-    for w in reordered:
-        if "~" in w:
-            result.extend(w.split("~"))
-        else:
-            result.append(w)
-
-    return result
+    return reordered
