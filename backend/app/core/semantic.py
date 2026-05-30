@@ -324,6 +324,10 @@ class SemanticEngine:
             is_valid_compound = llm_decision.get("is_valid", False)
             
             best_single_word = llm_decision.get("best_fallback", top_two_words[0])
+
+            if best_single_word == None:
+                print(f"[Log - wiki fallback] LLM decided the combo is stupid. Defaulting to fingerspelling for '{query}'.")
+                return None
             
             if best_single_word not in word_scores: best_single_word = top_two_words[0]
                 

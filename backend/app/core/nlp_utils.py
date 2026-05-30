@@ -79,6 +79,7 @@ def get_signs_set(db) -> set:
 
 def transform_to_arsl(sentence: str) -> list[str]:
     print(f"transform_to_arsl received: '{sentence}'")
+    sentence = sentence.replace("اسمي", "اسم").replace("أسمي", "اسم")
     
     clean_text = normalize_text(sentence)
 
@@ -156,5 +157,7 @@ def transform_to_arsl(sentence: str) -> list[str]:
 
     if negation_word: arsl_sequence.append("لا")
     if question_word:arsl_sequence.append(question_word)
+
+    if "قريبا" in arsl_sequence and "الان" in arsl_sequence: arsl_sequence.remove("الان")
  
     return arsl_sequence

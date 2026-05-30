@@ -180,18 +180,20 @@ def run_compound_verifier_agent(target_word: str, word1: str, word2: str) -> dic
     2. Do NOT approve metaphorical, philosophical, or loosely related concepts. "World Culture" (العالم ثقافة) is NOT a valid direct translation for "Global" (عالمي). Reject it.
     
     TASK 2: Choose the most core/central noun ("best_fallback") from the two words to represent the Target. You MUST choose one.
+    HOWEVER if neither are suitable/perfect match return best_fallback as None.
 
     Examples:
     - Target: لبؤة | Words: بنت, اسد -> {"is_valid": true, "best_fallback": "اسد"}
     - Target: شبل | Words: ولد, اسد -> {"is_valid": true, "best_fallback": "اسد"}
     - Target: عالمي | Words: العالم, ثقافة -> {"is_valid": false, "best_fallback": "العالم"}
+    - Target: سيكولوجية | Words: بحث, شخص -> {"is_valid": false, "best_fallback": None}
     - Target: عالمية | Words: العالم, ثقافة -> {"is_valid": false, "best_fallback": "العالم"}
-    - Target: مباشرة | Words: صغير, شارع -> {"is_valid": false, "best_fallback": "صغير"}
+    - Target: مباشرة | Words: صغير, شارع -> {"is_valid": false, "best_fallback": None}
     
     Return ONLY a JSON object:
     {
         "is_valid": true/false,
-        "best_fallback": "<one of the two words>"
+        "best_fallback": "<one of the two words>"/None
     }
     """
     
