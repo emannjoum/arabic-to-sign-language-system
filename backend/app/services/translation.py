@@ -1,26 +1,29 @@
 from dotenv import load_dotenv
 from sqlalchemy.orm import Session
-from app.core.nlp_utils import transform_to_arsl, normalize_text
+from app.core.nlp_utils import transform_to_arsl, normalize_text, get_signs_set
 from app.core.agents import run_translation_analyzer
 from app.db.models import Sign
 from app.schemas import SkeletonFrame
 from sqlalchemy import or_, cast, Text
 from sqlalchemy.dialects.postgresql import ARRAY
 from app.core.semantic import semantic_engine
-from app.core.nlp_utils import SIGNS_SET
+#from app.core.nlp_utils import SIGNS_SET
 from app.services.reordering_model import local_pointer_reorder
 import re
 from app.core.numbers_utils import get_protected_number_sequence
 
 load_dotenv()
 
-COMPOUND_SIGNS = sorted(
-    [s for s in SIGNS_SET if " " in s and len(s.split()) >= 2],
-    key=lambda x: -len(x)
-)
 ARABIC_PREPOSITIONS = {"الى", "إلى", "عن", "على", "في", "حتى", "مذ", "منذ","من"}
 
 def process_translation(user_input: str, db: Session):
+    current_signs_set = get_signs_set(db)
+    
+    COMPOUND_SIGNS = sorted(
+        [s for s in current_signs_set if " " in s and len(s.split()) >= 2],
+        key=lambda x: -len(x)
+    )
+
     intent_res = run_translation_analyzer(user_input)
     clean_text = normalize_text(intent_res.extracted_text)
     names = [normalize_text(n) for n in intent_res.names]
@@ -70,7 +73,7 @@ def process_translation(user_input: str, db: Session):
     filtered_words = []
     for w in text_words:
         if w in ARABIC_PREPOSITIONS: continue  
-        if w in SIGNS_SET and "_" not in w: w = w + "_" 
+        if w in current_signs_set and "_" not in w: w = w + "_" 
         filtered_words.append(w)
     
     clean_text = " ".join(filtered_words)
@@ -84,7 +87,7 @@ def process_translation(user_input: str, db: Session):
     clean_lemmas = []
     for w in lemmas_list:
         if w in ["؟", "؟_"]: has_question_mark = True
-        else: clean_lemmas.append(w)
+        else: clean_lemmas.append(w.rstrip("_"))
 
     if len(clean_lemmas) > 2:
         lemmas_string = " ".join(clean_lemmas) 

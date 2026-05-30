@@ -60,9 +60,22 @@ def load_signs_set():
     finally:
         db.close()
 
+def get_signs_set(db) -> set:
+    """Fetches the signs set dynamically using an active session."""
+    from app.db.models import Sign # Import locally if needed to avoid circular imports
+    signs = db.query(Sign.word, Sign.keywords).all()
+    signs_set = set()
+    for word, keywords in signs:
+        if word:
+            signs_set.add(word)
+        if keywords:
+            for kw in keywords:
+                signs_set.add(kw)
+    return signs_set
 
-SIGNS_SET = load_signs_set()
-print(f"Loaded {len(SIGNS_SET)} signs into N-gram set.")
+
+#SIGNS_SET = load_signs_set()
+#print(f"Loaded {len(SIGNS_SET)} signs into N-gram set.")
 
 def transform_to_arsl(sentence: str) -> list[str]:
     print(f"transform_to_arsl received: '{sentence}'")
