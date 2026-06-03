@@ -117,7 +117,7 @@ def transform_to_arsl(sentence: str) -> list[str]:
         if pos in ['prep', 'conj', 'abbrev']: continue
 
         if token in QUESTION_WORDS:
-            question_word = "سبب" if token == "لماذا" or token == "ليش" or token == "لويش" else token
+            question_word = "سبب" if token == "لماذا" or token == "ليش" or token == "لويش" or token == "لأن" or token == "ان" else token
             continue
         
         if pos == 'pron_rel': continue
@@ -159,5 +159,17 @@ def transform_to_arsl(sentence: str) -> list[str]:
     if question_word:arsl_sequence.append(question_word)
 
     if "قريبا" in arsl_sequence and "الان" in arsl_sequence: arsl_sequence.remove("الان")
+
+    tense_markers = {"قبل", "الان", "بعد"} 
+    final_arsl_words = []
+    has_tense = False
+    for word in arsl_sequence:
+        if word in tense_markers:
+            if not has_tense:
+                final_arsl_words.append(word)
+                has_tense = True
+        else:
+            final_arsl_words.append(word)
+
  
-    return arsl_sequence
+    return final_arsl_words
